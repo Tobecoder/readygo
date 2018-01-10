@@ -15,9 +15,10 @@
 package session
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/textproto"
 	"net/url"
@@ -73,8 +74,8 @@ type ManagerConfig struct {
 	DisableHTTPOnly         bool   `json:"disableHTTPOnly"`
 	Secure                  bool   `json:"secure"`
 	CookieLifeTime          int    `json:"cookieLifeTime"`
-	ProviderConfig          string `json:"providerConfig"`
 	Domain                  string `json:"domain"`
+	ProviderConfig          string `json:"providerConfig"`
 	SessionIDLength         int64  `json:"sessionIDLength"`
 	EnableSidInHTTPHeader   bool   `json:"EnableSidInHTTPHeader"`
 	SessionNameInHTTPHeader string `json:"SessionNameInHTTPHeader"`
@@ -165,7 +166,7 @@ func (manager *Manager) SessionStart(w http.ResponseWriter, r *http.Request) (se
 		if err != nil {
 			return nil, err
 		}
-		manager.SetCookie(sid, w, r)
+		manager.setCookie(sid, w, r)
 		return
 	}
 	sid, err = manager.sessionId()
@@ -176,7 +177,7 @@ func (manager *Manager) SessionStart(w http.ResponseWriter, r *http.Request) (se
 	if err != nil {
 		return nil, err
 	}
-	manager.SetCookie(sid, w, r)
+	manager.setCookie(sid, w, r)
 	return
 }
 
@@ -197,7 +198,8 @@ func (manager *Manager) SessionDestroy(w http.ResponseWriter, r *http.Request) {
 			Path:     "/",
 			HttpOnly: !manager.config.DisableHTTPOnly,
 			MaxAge:   -1,
-			Expires:  time.Now()})
+			Expires:  time.Now(),
+			Secure:   manager.isSecure(r)})
 	}
 }
 
@@ -206,8 +208,8 @@ func (manager *Manager) SessionGC() {
 	time.AfterFunc(time.Duration(manager.config.Gclifetime)*time.Second, func() { manager.SessionGC() })
 }
 
-// SetCookie set the http cookie of session
-func (manager *Manager) SetCookie(sid string, w http.ResponseWriter, r *http.Request) {
+// setCookie set the http cookie of session
+func (manager *Manager) setCookie(sid string, w http.ResponseWriter, r *http.Request) {
 	cookie := &http.Cookie{
 		Name:     manager.config.CookieName,
 		Value:    url.QueryEscape(sid),
@@ -241,18 +243,18 @@ func (manager *Manager) isSecure(r *http.Request) bool {
 	if r.URL.Scheme != "" {
 		return r.URL.Scheme == "https"
 	}
-	if r.TLS == nil {
-		return false
+	if r.TLS != nil {
+		return true
 	}
 	return true
 }
 
-// sessionid generate session-id
+// sessionId generate session-id
 // return any error
 func (manager *Manager) sessionId() (string, error) {
 	var b = make([]byte, manager.config.SessionIDLength)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return string(b), nil
+	return hex.EncodeToString(b), nil
 }

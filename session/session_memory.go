@@ -1,10 +1,24 @@
+// Copyright readygo Author. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package session
 
 import (
 	"container/list"
+	"net/http"
 	"sync"
 	"time"
-	"net/http"
 )
 
 type MemProvider struct {
@@ -37,8 +51,8 @@ func (mem *MemProvider) SessionRead(sid string) (Store, error) {
 
 	newMem := &MemStore{
 		accessTime: time.Now(),
-		sid:sid,
-		value:make(map[interface{}]interface{})}
+		sid:        sid,
+		value:      make(map[interface{}]interface{})}
 
 	element := mem.list.PushFront(newMem)
 	mem.sessions[sid] = element
@@ -79,8 +93,8 @@ func (mem *MemProvider) SessionRegenerate(oldSid, sid string) (Store, error) {
 
 	newMem := &MemStore{
 		accessTime: time.Now(),
-		sid:sid,
-		value:make(map[interface{}]interface{})}
+		sid:        sid,
+		value:      make(map[interface{}]interface{})}
 
 	element := mem.list.PushFront(newMem)
 	mem.sessions[sid] = element
@@ -95,6 +109,10 @@ func (mem *MemProvider) SessionDestroy(sid string) error {
 	if element, ok := mem.sessions[sid]; ok {
 		mem.list.Remove(element)
 		delete(mem.sessions, sid)
+		// at the same time, set the session storage value nil
+		// avoid the previous session storage get values
+		element.Value.(*MemStore).value = nil
+		element.Value.(*MemStore).sid = ""
 	}
 	return nil
 }
@@ -115,14 +133,14 @@ func (mem *MemProvider) SessionGC() {
 
 		// since method SessionUpdate push the latest access session to the front of list,
 		// so if the last element is not expires, do break
-		if time.Now().Sub(element.Value.(*MemStore).accessTime) > time.Duration(mem.maxLifeTime) * time.Second {
+		if time.Now().Sub(element.Value.(*MemStore).accessTime) > time.Duration(mem.maxLifeTime)*time.Second {
 			mem.lock.RUnlock()
 			mem.lock.Lock()
 			mem.list.Remove(element)
 			delete(mem.sessions, element.Value.(*MemStore).sid)
 			mem.lock.Unlock()
 			mem.lock.RLock()
-		}else{
+		} else {
 			break
 		}
 	}
@@ -147,7 +165,7 @@ type MemStore struct {
 	lock       sync.RWMutex
 }
 
-// Set session key's value
+// Set set session key's value
 func (ms *MemStore) Set(key, value interface{}) error {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
@@ -165,7 +183,7 @@ func (ms *MemStore) Get(key interface{}) interface{} {
 	return nil
 }
 
-// Delete the value of key
+// Delete delete the value of key
 func (ms *MemStore) Delete(key interface{}) error {
 	ms.lock.Lock()
 	defer ms.lock.Unlock()
