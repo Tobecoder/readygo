@@ -204,7 +204,7 @@ func (ms *MemStore) SessionRelease(w http.ResponseWriter) {
 // Flush delete all data
 func (ms *MemStore) Flush() error {
 	ms.lock.Lock()
-	defer ms.lock.Lock()
+	defer ms.lock.Unlock()
 	ms.value = make(map[interface{}]interface{})
 	return nil
 }

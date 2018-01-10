@@ -86,6 +86,19 @@ func TestEnableCookie(t *testing.T) {
 		t.Fatalf("delete session %s's value %v failed", name, value)
 	}
 
+	// test get SessionID
+	session.SessionID()
+
+	// test session Flush
+	session.Set(name, value)
+	if err = session.Flush(); err != nil {
+		t.Fatal("session flush failed")
+	}
+
+	if username := session.Get(name); username != nil {
+		t.Fatalf("session flush failed, the %s:%v exist", name, value)
+	}
+
 	// test cookie
 	if cookieStr := w.Header().Get("Set-Cookie"); cookieStr == "" {
 		t.Fatal("set cookie error")
