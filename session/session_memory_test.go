@@ -28,8 +28,8 @@ const (
 	value = "to be a coder"
 )
 
-func TestEnableCookie(t *testing.T) {
-	config := `{"cookieName":"GOSESSID","enableSetCookie":true,"gclifetime":10,"disableHTTPOnly":false,"secure":true,"cookieLifeTime":0,"domain":""}`
+func TestMemory(t *testing.T) {
+	config := `{"cookieName":"GOSESSID","enableSetCookie":true,"EnableSidInHTTPHeader":true,"SessionNameInHTTPHeader":"Gosessid","EnableSidInURLQuery":true,"gclifetime":10,"disableHTTPOnly":false,"secure":true,"cookieLifeTime":10,"domain":""}`
 	conf := new(ManagerConfig)
 	if err := json.Unmarshal([]byte(config), conf); err != nil {
 		t.Fatal("json decode err:", err)
@@ -50,6 +50,11 @@ func TestEnableCookie(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session start:%v", err)
 	}
+	// repeat session start
+	session, err = globalSessions.SessionStart(w, r)
+	if err != nil {
+		t.Fatalf("session start:%v", err)
+	}
 	defer session.SessionRelease(w)
 	// test session Set
 	err = session.Set(name, value)
@@ -64,13 +69,16 @@ func TestEnableCookie(t *testing.T) {
 
 	// test SessionGC
 	session, _ = globalSessions.SessionStart(w, r)
+	defer session.SessionRelease(w)
 	session.Set(name, value)
 	go globalSessions.SessionGC()
-	time.AfterFunc(time.Duration(conf.Gclifetime)*time.Second, func() {
-		if username := session.Get(name); username != nil {
-			t.Fatal("session gc failed")
-		}
-	})
+	time.Sleep(time.Duration(conf.Gclifetime)*time.Second)
+
+	//test session regenerate
+	session, err = globalSessions.SessionRegenerate(w, r)
+	if username := session.Get(name); username != nil {
+		t.Fatal("session regenerate falied")
+	}
 
 	// test session Get
 	session.Set(name, value)
@@ -97,6 +105,39 @@ func TestEnableCookie(t *testing.T) {
 
 	if username := session.Get(name); username != nil {
 		t.Fatalf("session flush failed, the %s:%v exist", name, value)
+	}
+
+	// test SessionInit
+	globalSessions.provider.SessionInit(conf.Maxlifetime, conf.ProviderConfig)
+	sid, err := globalSessions.getSid(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test SessionRead
+	session, err = globalSessions.provider.SessionRead(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test SessionAll
+	globalSessions.provider.SessionAll()
+
+	if exist := globalSessions.provider.SessionExist(sid); !exist {
+		t.Fatal("session exist failed")
+	}
+
+	//test SessionRegenerate
+	session.Set(name, value)
+	session, err = globalSessions.SessionRegenerate(w, r)
+	if username := session.Get(name); username != value {
+		t.Fatal("session regenerate falied")
+	}
+
+	newRequest, _ := http.NewRequest("GET", "/", nil)
+	session, err = globalSessions.SessionRegenerate(w, newRequest)
+	if username := session.Get(name); username != nil {
+		t.Fatal("session regenerate falied")
 	}
 
 	// test cookie

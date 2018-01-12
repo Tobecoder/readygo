@@ -203,9 +203,30 @@ func (manager *Manager) SessionDestroy(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// SessionGC recycle expires sessions
 func (manager *Manager) SessionGC() {
 	manager.provider.SessionGC()
 	time.AfterFunc(time.Duration(manager.config.Gclifetime)*time.Second, func() { manager.SessionGC() })
+}
+
+// SessionRegenerate regenerate session id for old session id,
+// the old content will be hold to the new session
+func (manager *Manager) SessionRegenerate(w http.ResponseWriter, r *http.Request) (session Store, err error){
+	sid, err := manager.sessionId()
+	if err != nil {
+		return nil, err
+	}
+	oldSid, err := manager.getSid(r)
+	if err != nil || oldSid == ""{
+		session, err = manager.provider.SessionRead(sid)
+		if err != nil {
+			return nil, err
+		}
+	}else{
+		session, err = manager.provider.SessionRegenerate(oldSid, sid)
+	}
+	manager.setCookie(sid, w, r)
+	return
 }
 
 // setCookie set the http cookie of session
