@@ -32,8 +32,9 @@ session模块提供了session的相关支持。对于个人而言，学习如何
   var globalSessions *session.Manager
   
 使用memory provider
-
+```
   func init() {
   	globalSessions, _ = session.NewManager("memory", `{"cookieName":"gosessid","gclifetime":3600}`)
   	go globalSessions.GC()
   }
+```
