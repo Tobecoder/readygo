@@ -1,5 +1,5 @@
 language: go
-sudo: false
+
 go:
   - 1.8.x
   - tip
@@ -8,7 +8,7 @@ before_install:
   - go get -t -v ./...
 
 script:
-  - ./go.test.sh
+  - go test -race -coverprofile=coverage.txt -covermode=atomic
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -t 3893ac5b-6230-4567-b5f6-ba141e6b80f5
+  - bash <(curl -s https://codecov.io/bash)
