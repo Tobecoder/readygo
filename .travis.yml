@@ -11,4 +11,4 @@ script:
   - ./go.test.sh
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash) -t uuid-repo-token
+  - bash <(curl -s https://codecov.io/bash) -t 3893ac5b-6230-4567-b5f6-ba141e6b80f5
