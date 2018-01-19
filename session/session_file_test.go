@@ -20,22 +20,21 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 const (
-	name  = "username"
-	value = "to be a coder"
+	filename  = "username"
+	filevalue = "to be a coder"
 )
 
-func TestMemory(t *testing.T) {
-	config := `{"cookieName":"GOSESSID","enableSetCookie":true,"EnableSidInHTTPHeader":true,"SessionNameInHTTPHeader":"Gosessid","EnableSidInURLQuery":true,"gclifetime":10,"disableHTTPOnly":false,"secure":true,"cookieLifeTime":10,"domain":""}`
+func TestFile(t *testing.T) {
+	config := `{"cookieName":"GOSESSID","providerConfig":"./tmp","enableSetCookie":true,"EnableSidInHTTPHeader":true,"SessionNameInHTTPHeader":"Gosessid","EnableSidInURLQuery":true,"gclifetime":10,"disableHTTPOnly":false,"secure":true,"cookieLifeTime":10,"domain":""}`
 	conf := new(ManagerConfig)
 	if err := json.Unmarshal([]byte(config), conf); err != nil {
 		t.Fatal("json decode err:", err)
 	}
 	// test NewManager
-	globalSessions, err := NewManager("memory", conf)
+	globalSessions, err := NewManager("file", conf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,56 +54,56 @@ func TestMemory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session start:%v", err)
 	}
-	defer session.SessionRelease(w)
 	// test session Set
-	err = session.Set(name, value)
+	err = session.Set(filename, filevalue)
 	if err != nil {
-		t.Fatalf("set session %s:%v", name, err)
+		t.Fatalf("set session %s:%v", filename, err)
 	}
 	// test SessionDestroy
 	globalSessions.SessionDestroy(w, r)
-	if username := session.Get(name); username != nil {
+	session.SessionRelease(w)
+	if username := session.Get(filename); username != nil {
 		t.Fatal("session destroy faild: value not destroy")
 	}
 
 	// test SessionGC
 	session, _ = globalSessions.SessionStart(w, r)
-	defer session.SessionRelease(w)
-	session.Set(name, value)
+	session.Set(filename, filevalue)
+	session.SessionRelease(w)
 	go globalSessions.SessionGC()
-	time.Sleep(time.Duration(conf.Gclifetime)*time.Second)
 
 	//test session regenerate
 	session, err = globalSessions.SessionRegenerate(w, r)
-	if username := session.Get(name); username != nil {
-		t.Fatal("session regenerate falied")
+	if err != nil {
+		t.Fatal("session regenerate falied", err)
 	}
+	defer session.SessionRelease(w)
 
 	// test session Get
-	session.Set(name, value)
-	if username := session.Get(name); username != value {
-		t.Fatalf("get session %s's value %v failed", name, value)
+	session.Set(filename, filevalue)
+	if username := session.Get(filename); username != filevalue {
+		t.Fatalf("get session %s's value %v failed", filename, filevalue)
 	}
 
 	// test session Delete
-	if err = session.Delete(name); err != nil {
-		t.Fatalf("delete session %s failed", name)
+	if err = session.Delete(filename); err != nil {
+		t.Fatalf("delete session %s failed", filename)
 	}
-	if username := session.Get(name); username != nil {
-		t.Fatalf("delete session %s's value %v failed", name, value)
+	if username := session.Get(filename); username != nil {
+		t.Fatalf("delete session %s's value %v failed", filename, filevalue)
 	}
 
 	// test get SessionID
 	session.SessionID()
 
 	// test session Flush
-	session.Set(name, value)
+	session.Set(filename, filevalue)
 	if err = session.Flush(); err != nil {
 		t.Fatal("session flush failed")
 	}
 
-	if username := session.Get(name); username != nil {
-		t.Fatalf("session flush failed, the %s:%v exist", name, value)
+	if username := session.Get(filename); username != nil {
+		t.Fatalf("session flush failed, the %s:%v exist", filename, filevalue)
 	}
 
 	// test SessionInit
@@ -116,10 +115,10 @@ func TestMemory(t *testing.T) {
 
 	// test SessionRead
 	session, err = globalSessions.provider.SessionRead(sid)
-	session, err = globalSessions.provider.SessionRead(sid)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	// test SessionAll
 	globalSessions.provider.SessionAll()
 
@@ -128,17 +127,22 @@ func TestMemory(t *testing.T) {
 	}
 
 	//test SessionRegenerate
-	session.Set(name, value)
+	session.Set(filename, filevalue)
+	session.SessionRelease(w)
 	session, err = globalSessions.SessionRegenerate(w, r)
-	if username := session.Get(name); username != value {
+	if username := session.Get(filename); username != filevalue {
 		t.Fatal("session regenerate falied")
 	}
 
 	newRequest, _ := http.NewRequest("GET", "/", nil)
 	session, err = globalSessions.SessionRegenerate(w, newRequest)
-	if username := session.Get(name); username != nil {
+	if username := session.Get(filename); username != nil {
 		t.Fatal("session regenerate falied")
 	}
+
+	oldSid, _ := globalSessions.sessionId()
+	newSid, _ := globalSessions.sessionId()
+	session, err = globalSessions.provider.SessionRegenerate(oldSid, newSid)
 
 	// test cookie
 	if cookieStr := w.Header().Get("Set-Cookie"); cookieStr == "" {

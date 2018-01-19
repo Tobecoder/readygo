@@ -138,6 +138,8 @@ func (mem *MemProvider) SessionGC() {
 			mem.lock.Lock()
 			mem.list.Remove(element)
 			delete(mem.sessions, element.Value.(*MemStore).sid)
+			element.Value.(*MemStore).value = nil
+			element.Value.(*MemStore).sid = ""
 			mem.lock.Unlock()
 			mem.lock.RLock()
 		} else {

@@ -19,9 +19,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"os"
 	"time"
 )
 
@@ -32,7 +35,7 @@ type Store interface {
 	Get(key interface{}) interface{}      //get session value
 	Delete(key interface{}) error         //delete session value
 	SessionID() string                    //back current sessionID
-	SessionRelease(w http.ResponseWriter) //release the resource & save data to provider & return the data
+	SessionRelease(w http.ResponseWriter) //release the resource & save data to provider
 	Flush() error                         //delete all data
 }
 
@@ -49,7 +52,10 @@ type Provider interface {
 	SessionGC()
 }
 
-var providers = make(map[string]Provider)
+var (
+	providers = make(map[string]Provider)
+	Logger    = NewSessionLog(os.Stderr)
+)
 
 // Register makes a session provide available by the provided name.
 // If Register is called twice with the same name or if driver is nil,
@@ -211,18 +217,18 @@ func (manager *Manager) SessionGC() {
 
 // SessionRegenerate regenerate session id for old session id,
 // the old content will be hold to the new session
-func (manager *Manager) SessionRegenerate(w http.ResponseWriter, r *http.Request) (session Store, err error){
+func (manager *Manager) SessionRegenerate(w http.ResponseWriter, r *http.Request) (session Store, err error) {
 	sid, err := manager.sessionId()
 	if err != nil {
 		return nil, err
 	}
 	oldSid, err := manager.getSid(r)
-	if err != nil || oldSid == ""{
+	if err != nil || oldSid == "" {
 		session, err = manager.provider.SessionRead(sid)
 		if err != nil {
 			return nil, err
 		}
-	}else{
+	} else {
 		session, err = manager.provider.SessionRegenerate(oldSid, sid)
 	}
 	manager.setCookie(sid, w, r)
@@ -278,4 +284,16 @@ func (manager *Manager) sessionId() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// Log supports the log handler of session
+type Log struct {
+	*log.Logger
+}
+
+// NewSessionLog retrieves the Log
+func NewSessionLog(w io.Writer) *Log {
+	sl := new(Log)
+	sl.Logger = log.New(w, "[SESSION]", 1e9)
+	return sl
 }
