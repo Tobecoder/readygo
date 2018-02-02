@@ -12,11 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package session provider
+//
+// Usage:
+// import(
+//   "github.com/Tobecoder/readygo/session"
+// )
+//
+//	func init() {
+//      globalSessions, _ = session.NewManager("memory", `{"cookieName":"gosessid", "enableSetCookie,omitempty": true, "gclifetime":3600, "maxLifetime": 3600, "secure": false, "cookieLifeTime": 3600, "providerConfig": ""}`)
+//		go globalSessions.GC()
+//	}
+//
+//
+
 package session
 
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -98,6 +113,7 @@ type Manager struct {
 // NewManager Create new Manager with provider name and json config string.
 // providerName lists here:
 // 1. memory
+// 2. file
 func NewManager(providerName string, cf *ManagerConfig) (*Manager, error) {
 	provider, ok := providers[providerName]
 	if !ok {
@@ -132,6 +148,15 @@ func NewManager(providerName string, cf *ManagerConfig) (*Manager, error) {
 		provider: provider,
 		config:   cf,
 	}, nil
+}
+
+// NewManagerJson init Manager by json config
+func NewManagerJson(providerName, config string) (*Manager, error) {
+	cf := new(ManagerConfig)
+	if err := json.Unmarshal([]byte(config), cf); err != nil {
+		return nil, err
+	}
+	return NewManager(providerName, cf)
 }
 
 // getSid retrieves session identifier from HTTP Request.

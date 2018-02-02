@@ -72,7 +72,7 @@ func TestMemory(t *testing.T) {
 	defer session.SessionRelease(w)
 	session.Set(name, value)
 	go globalSessions.SessionGC()
-	time.Sleep(time.Duration(conf.Gclifetime)*time.Second)
+	time.Sleep(time.Duration(conf.Gclifetime) * time.Second)
 
 	//test session regenerate
 	session, err = globalSessions.SessionRegenerate(w, r)
