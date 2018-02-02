@@ -111,10 +111,13 @@ func (ini *IniConfig) ParseData(data []byte) (Provider, error) {
 		}
 		// parse attribute
 		if split := bytes.Split(line, byteAssign); split != nil {
+			// ensure original sort
+			listMap := make(map[string]*list.List)
+			listMap[section] = list.New()
+			c.list.PushBack(listMap)
 			// if section is not set, init it
 			if _, ok := c.data[section]; !ok {
 				c.data[section] = make(map[string]string)
-				c.list.PushBack(section)
 			}
 
 			// support attribute's value appear byteAssign, which must has prefix byteQuote
@@ -134,6 +137,8 @@ func (ini *IniConfig) ParseData(data []byte) (Provider, error) {
 			}
 			keyValue = valSplit[0]
 			c.data[section][key] = string(keyValue)
+			// ensure original sort
+			listMap[section].PushBack(key)
 			if comment.Len() > 0 {
 				c.attributeComment[section+attributeDivision+key] = comment.String()
 				comment.Reset()
@@ -260,42 +265,51 @@ func (c *Container) SaveFile(filename string) error {
 			break
 		}
 
-		section := element.Value.(string)
-		if section == defaultSection {
-			c.list.Remove(element)
-			continue
-		}
-		// write section comment
-		if comment := parseSectionComment(section, ""); comment != "" {
-			if _, err := buf.WriteString(comment + lineBreak); err != nil {
-				return err
+		sectionList := element.Value.(map[string]*list.List)
+	first:
+		for section, keyList := range sectionList {
+			if section == defaultSection {
+				c.list.Remove(element)
+				break first
 			}
-		}
-		// write section name
-		if _, err := buf.WriteString(string(byteSectionStart) + section + string(byteSectionEnd) + lineBreak); err != nil {
-			return err
-		}
-
-		for k, val := range c.data[section] {
-
-			if k != "" {
-				// write attribute comment
-				if comment := parseSectionComment(section, k); comment != "" {
-					if _, err := buf.WriteString(comment + lineBreak); err != nil {
-						return err
-					}
-				}
-				// write key and value
-				if _, err := buf.WriteString(k + string(byteAssign) + val + lineBreak); err != nil {
+			// write section comment
+			if comment := parseSectionComment(section, ""); comment != "" {
+				if _, err := buf.WriteString(comment + lineBreak); err != nil {
 					return err
 				}
 			}
+			// write section name
+			if _, err := buf.WriteString(string(byteSectionStart) + section + string(byteSectionEnd) + lineBreak); err != nil {
+				return err
+			}
+		second:
+			for {
+				keyElement := keyList.Front()
+				if keyElement == nil {
+					break second
+				}
+				k := keyElement.Value.(string)
+				if k != "" {
+					val := c.data[section][k]
+					// write attribute comment
+					if comment := parseSectionComment(section, k); comment != "" {
+						if _, err := buf.WriteString(comment + lineBreak); err != nil {
+							return err
+						}
+					}
+					// write key and value
+					if _, err := buf.WriteString(k + string(byteAssign) + val + lineBreak); err != nil {
+						return err
+					}
+				}
+				keyList.Remove(keyElement)
+			}
+			// Put a line between sections.
+			if _, err = buf.WriteString(lineBreak); err != nil {
+				return err
+			}
+			c.list.Remove(element)
 		}
-		// Put a line between sections.
-		if _, err = buf.WriteString(lineBreak); err != nil {
-			return err
-		}
-		c.list.Remove(element)
 	}
 	//for section, data := range c.data {
 	//	if section != defaultSection {
