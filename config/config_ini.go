@@ -322,39 +322,6 @@ func (c *Container) SaveFile(filename string) error {
 		}
 		c.list.Remove(element)
 	}
-	//for section, data := range c.data {
-	//	if section != defaultSection {
-	//		// write section comment
-	//		if comment := parseSectionComment(section, ""); comment != "" {
-	//			if _, err := buf.WriteString(comment + lineBreak); err != nil {
-	//				return err
-	//			}
-	//		}
-	//		// write section name
-	//		if _, err := buf.WriteString(string(byteSectionStart) + section + string(byteSectionEnd) + lineBreak); err != nil {
-	//			return err
-	//		}
-	//
-	//		for k, val := range data {
-	//			if k != "" {
-	//				// write attribute comment
-	//				if comment := parseSectionComment(section, k); comment != "" {
-	//					if _, err := buf.WriteString(comment + lineBreak); err != nil {
-	//						return err
-	//					}
-	//				}
-	//				// write key and value
-	//				if _, err := buf.WriteString(k + string(byteAssign) + val + lineBreak); err != nil {
-	//					return err
-	//				}
-	//			}
-	//		}
-	//	}
-	//	// Put a line between sections.
-	//	if _, err = buf.WriteString(lineBreak); err != nil {
-	//		return err
-	//	}
-	//}
 	_, err = buf.WriteTo(f)
 	return err
 }
