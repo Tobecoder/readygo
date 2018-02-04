@@ -13,7 +13,7 @@ config模块提供了config的相关支持。对于个人而言，学习如何实现一个config handler。
 ## 安装
 
 ```
- ?go get github.com/Tobecoder/readygo/config
+  go get github.com/Tobecoder/readygo/config
 ```
 ## providers列表
 
