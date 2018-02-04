@@ -17,7 +17,7 @@ session模块提供了session的相关支持。对于个人而言，学习如何
 ```
 ## providers列表
 
-目前包含了memory。
+目前包含了`memory`, `file`。
 
 ## 使用
 
