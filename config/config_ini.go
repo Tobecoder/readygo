@@ -247,27 +247,6 @@ func (c *Container) SaveFile(filename string) error {
 	}
 
 	buf := bytes.NewBuffer(nil)
-	// Save default section at first place
-	if data, ok := c.data[defaultSection]; ok {
-		for key, val := range data {
-			if key != "" {
-				// save comment
-				if v := parseSectionComment(defaultSection, key); v != "" {
-					if _, err := buf.WriteString(v + lineBreak); err != nil {
-						return err
-					}
-				}
-				// Write key and value.
-				if _, err := buf.WriteString(key + string(byteAssign) + val + lineBreak); err != nil {
-					return err
-				}
-			}
-		}
-		// Put a line between sections.
-		if _, err = buf.WriteString(lineBreak); err != nil {
-			return err
-		}
-	}
 	// Save named sections
 	for {
 		element := c.list.Front()
@@ -278,9 +257,6 @@ func (c *Container) SaveFile(filename string) error {
 		sectionList := element.Value.(map[string]*list.List)
 	sectionNext:
 		for section, keyList := range sectionList {
-			if section == defaultSection {
-				break sectionNext
-			}
 			// write section comment
 			if comment := parseSectionComment(section, ""); comment != "" {
 				if _, err := buf.WriteString(comment + lineBreak); err != nil {
