@@ -136,7 +136,7 @@ func (ini *IniConfig) ParseData(data []byte) (Provider, error) {
 			}
 
 			key := strings.ToLower(string(bytes.TrimSpace(split[0])))
-			keyValue := bytes.TrimSpace(split[1])
+			keyValue := bytes.TrimSpace(bytes.Join(split[1:], byteAssign))
 			keyValue = bytes.Replace(keyValue, byteQuote, byteEmpty, -1)
 			// support comment likes below
 			// extension=php_exif.dll      ; Must be after mbstring as it depends on it
@@ -363,7 +363,7 @@ func (c *Container) DefaultString(key, defaultVal string) string {
 func (c *Container) DefaultStrings(key string, defaultVal []string) []string {
 	value := c.Strings(key)
 	if value == nil {
-		return defaultVal
+		value = defaultVal
 	}
 	return value
 }
@@ -373,7 +373,7 @@ func (c *Container) DefaultStrings(key string, defaultVal []string) []string {
 func (c *Container) DefaultInt(key string, defaultVal int) int {
 	value, err := c.Int(key)
 	if err != nil {
-		return defaultVal
+		value = defaultVal
 	}
 	return value
 }
@@ -383,7 +383,7 @@ func (c *Container) DefaultInt(key string, defaultVal int) int {
 func (c *Container) DefaultInt64(key string, defaultVal int64) int64 {
 	value, err := c.Int64(key)
 	if err != nil {
-		return defaultVal
+		value = defaultVal
 	}
 	return value
 }
@@ -393,7 +393,7 @@ func (c *Container) DefaultInt64(key string, defaultVal int64) int64 {
 func (c *Container) DefaultBool(key string, defaultVal bool) bool {
 	value, err := c.Bool(key)
 	if err != nil {
-		return defaultVal
+		value = defaultVal
 	}
 	return value
 }
@@ -403,7 +403,7 @@ func (c *Container) DefaultBool(key string, defaultVal bool) bool {
 func (c *Container) DefaultFloat(key string, defaultVal float64) float64 {
 	value, err := c.Float(key)
 	if err != nil {
-		return defaultVal
+		value = defaultVal
 	}
 	return value
 }
