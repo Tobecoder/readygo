@@ -176,11 +176,27 @@ func (c *Container) Set(key, value string) error {
 	if key == "" {
 		return errors.New("key is empty")
 	}
+	// ensure original sort
+	var listMap = make(map[string]*list.List)
+
 	section, k := c.parseSectionKey(key)
 	if _, ok := c.data[section]; !ok {
 		c.data[section] = make(map[string]string)
+		listMap[section] = list.New()
+		c.list.PushBack(listMap)
+	}else{
+		for e := c.list.Front(); e != nil ; e = e.Next() {
+			element := e.Value.(map[string]*list.List)
+			for sectionAlias, key := range element{
+				if sectionAlias == section {
+					listMap[section] = key
+					break
+				}
+			}
+		}
 	}
 	c.data[section][k] = value
+	listMap[section].PushBack(k)
 	return nil
 }
 
