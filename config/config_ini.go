@@ -184,10 +184,10 @@ func (c *Container) Set(key, value string) error {
 		c.data[section] = make(map[string]string)
 		listMap[section] = list.New()
 		c.list.PushBack(listMap)
-	}else{
-		for e := c.list.Front(); e != nil ; e = e.Next() {
+	} else {
+		for e := c.list.Front(); e != nil; e = e.Next() {
 			element := e.Value.(map[string]*list.List)
-			for sectionAlias, key := range element{
+			for sectionAlias, key := range element {
 				if sectionAlias == section {
 					listMap[section] = key
 					break
