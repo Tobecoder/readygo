@@ -14,21 +14,24 @@
 
 package orm
 
+type TableInfo struct {
+	tableName string
+}
+
 type Builder interface {
 }
 
 type QueryParser interface {
-	//Connection()                     // get current connection
-	Connect()                        // change current database connection
+	Connect(alias string) QueryParser // change current database connection
 	//SetBuilder()                     // set current builder
 	//Builder() Builder                // get current builder
-	//SetTable(tableName string)       // set default table name, which contains table prefix
-	//Table(tableName string)          // get default table name, which contains table prefix
+	GetTable() string      // get current table name, which contains table prefix
+	Table(tableName string) QueryParser // set default table name, tableName should not contains table prefix
 	//ParseSqlTable(sql string) string // replace __TABLE_NAME__ in sql with table name in lowercase, which contains table prefix
-	//Query()                          // execute sql query, return data set
-	//Exec()                           // execute sql query
+	Query(query string, args ...interface{}) ([]map[string]interface{}, error)  // execute sql query, return data set
+	Exec(query string, args ...interface{}) (int64, error)   // execute sql query
 	//LastInsID()                      // get last insert id
-	//LastSql() string                 // get last execute sql
+	LastSql() string                 // get last execute sql
 	//Transaction()                    // execute sql database transaction
 	//StartTrans()                     // start transaction
 	//Commit()                         // commit transaction
@@ -70,7 +73,6 @@ type QueryParser interface {
 	//Having()                         // assemble having clause
 	//Lock()                           // assemble for update clause
 	//Distinct()                       // assemble distinct clause
-	//FetchSql()                       // retrieves query sql
 	//SetPK()                          // set table primary key
 	//TableInfo()                      // retrieves table's information, which contains fields、type、bind、pk
 	//Insert()                         // insert data

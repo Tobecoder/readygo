@@ -23,10 +23,9 @@ import (
 )
 
 var (
-	Debug           = false
+	Debug           = true
 	DebugLog        = NewLog(os.Stdout)
 	DefaultTimeZone = time.Local
-	drivers         = make(map[string]QueryParser)
 	TypedMySQL      = "mysql"
 )
 
@@ -42,7 +41,15 @@ func NewLog(out io.Writer) *Log {
 	return d
 }
 
+// log logs err
+func (l *Log) log(err error) {
+	if Debug {
+		l.Println(err)
+	}
+}
+
 // NewOrm return the query parser
+// if alias is empty, default alias will be assembled to QueryParser
 func NewOrm(alias string) (QueryParser, error) {
 	if alias == "" {
 		alias = linkedCache.Default
@@ -51,28 +58,13 @@ func NewOrm(alias string) (QueryParser, error) {
 	if !ok {
 		return nil, fmt.Errorf("alias driver %s have not registered", alias)
 	}
-
-	parser, ok := drivers[aliasDriver.DriverName]
-	if !ok {
-		return nil, fmt.Errorf("query parser alias %s have not registered", aliasDriver.DriverName)
-	}
+	var parser QueryParser
 
 	switch aliasDriver.DriverName {
 	case TypedMySQL:
-		parser.(*mysqlQuery).driver = aliasDriver
+		parser = newMysqlQuery(aliasDriver)
 	default:
 		return nil, fmt.Errorf("alias %s of parse query not found", aliasDriver.DriverName)
 	}
 	return parser, nil
-}
-
-// RegisterQuery register
-func RegisterQuery(driverName string, parser QueryParser) {
-	if parser == nil {
-		panic("parser couldn't not be nil")
-	}
-	if _, ok := drivers[driverName]; ok {
-		panic("couldn't register query " + driverName + " twice")
-	}
-	drivers[driverName] = parser
 }

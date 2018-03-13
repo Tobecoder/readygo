@@ -19,6 +19,8 @@ import (
 	"os"
 	"log"
 	_ "github.com/go-sql-driver/mysql"
+	"fmt"
+	"encoding/json"
 )
 
 var config = map[string]interface{}{
@@ -49,8 +51,18 @@ func TestMain(m *testing.M) {
 }
 
 func TestOrm(t *testing.T) {
-	_, err := NewOrm("")
+	orm, err := NewOrm("")
 	if err != nil {
 		t.Fatal(err)
 	}
+	dataSet, _ := orm.Query("SELECT * FROM userinfo")
+	data, _ := json.Marshal(dataSet)
+	fmt.Println(string(data))
+	rows, err := orm.Exec("UPDATE userinfo set username = ? where uid = ?", "houhou", 6)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(rows)
+	fmt.Println(orm.LastSql())
+	t.Fatal("test done")
 }

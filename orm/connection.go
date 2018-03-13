@@ -104,7 +104,6 @@ func RegisterDataBase(config DbConfig) error {
 			if maxOpenConns > 0 {
 				SetMaxOpenConns(alias.Name, maxOpenConns)
 			}
-			db.Close()
 		}
 	}
 	return nil

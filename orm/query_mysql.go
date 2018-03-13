@@ -15,12 +15,14 @@
 package orm
 
 type mysqlQuery struct {
-	Query
+	BaseQuery
 }
 
 var _ QueryParser = new(mysqlQuery)
 
-func init() {
-	mysqlQuery := new(mysqlQuery)
-	RegisterQuery(TypedMySQL, mysqlQuery)
+// create new mysql dbBaser.
+func newMysqlQuery(aliasDriver *driverAlias) QueryParser {
+	q := new(mysqlQuery)
+	q.driver = aliasDriver
+	return q
 }
