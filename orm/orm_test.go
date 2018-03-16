@@ -15,27 +15,27 @@
 package orm
 
 import (
-	"testing"
-	"os"
-	"log"
-	_ "github.com/go-sql-driver/mysql"
-	"fmt"
 	"encoding/json"
+	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+	"log"
+	"os"
+	"testing"
 )
 
 var config = map[string]interface{}{
 	"default": "mysql_dev",
-	"mysql_dev":map[string]string{
-		"dsn": "root:123456@tcp(localhost:3306)/gotest?charset=utf8",
-		"prefix": "",
-		"driver": "mysql",
+	"mysql_dev": map[string]string{
+		"dsn":          "root:123456@tcp(localhost:3306)/gotest?charset=utf8",
+		"prefix":       "test_",
+		"driver":       "mysql",
 		"maxOpenConns": "200",
 		"maxIdleConns": "10",
 	},
-	"mysql_dev2":map[string]string{
-		"dsn": "root:123456@tcp(localhost:3306)/gotest2?charset=utf8",
-		"prefix": "test_",
-		"driver": "mysql",
+	"mysql_dev2": map[string]string{
+		"dsn":          "root:123456@tcp(localhost:3306)/gotest2?charset=utf8",
+		"prefix":       "test_",
+		"driver":       "mysql",
 		"maxOpenConns": "200",
 		"maxIdleConns": "10",
 	},
@@ -55,14 +55,25 @@ func TestOrm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataSet, _ := orm.Query("SELECT * FROM userinfo")
+	dataSet, _ := orm.Query("SELECT * FROM test_userinfo")
 	data, _ := json.Marshal(dataSet)
 	fmt.Println(string(data))
-	rows, err := orm.Exec("UPDATE userinfo set username = ? where uid = ?", "houhou", 6)
+	rows, err := orm.Exec("UPDATE test_userinfo set username = ? where uid = ?", "houhou", 6)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println(rows)
 	fmt.Println(orm.LastSql())
+
+	//orm.Connect("mysql_dev2")
+	orm.Table("userinfo u").
+		Union(func (query QueryParser){
+		 	query.Table("userdetail d").Field("name")
+		}).
+		Union(func (query QueryParser){
+		 	query.Table("userdetail d").Field("name")
+		}).
+		Field("uid").
+		Find()
 	t.Fatal("test done")
 }

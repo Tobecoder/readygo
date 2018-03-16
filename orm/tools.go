@@ -13,17 +13,3 @@
 // limitations under the License.
 
 package orm
-
-type mysqlQuery struct {
-	BaseQuery
-}
-
-var _ QueryParser = new(mysqlQuery)
-
-// newMysqlQuery create new mysql query.
-func newMysqlQuery(aliasDriver *driverAlias) QueryParser {
-	q := new(mysqlQuery)
-	q.driver = aliasDriver
-	q.builder = newMysqlBuilder(q)
-	return q
-}

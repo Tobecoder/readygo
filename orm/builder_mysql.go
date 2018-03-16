@@ -14,16 +14,15 @@
 
 package orm
 
-type mysqlQuery struct {
-	BaseQuery
+type MysqlBuilder struct {
+	BaseBuilder
 }
 
-var _ QueryParser = new(mysqlQuery)
+var _ Builder = new(MysqlBuilder)
 
-// newMysqlQuery create new mysql query.
-func newMysqlQuery(aliasDriver *driverAlias) QueryParser {
-	q := new(mysqlQuery)
-	q.driver = aliasDriver
-	q.builder = newMysqlBuilder(q)
-	return q
+// newMysqlBuilder create new mysql builder.
+func newMysqlBuilder(query QueryParser) Builder{
+	b := new(MysqlBuilder)
+	b.query = query
+	return b
 }

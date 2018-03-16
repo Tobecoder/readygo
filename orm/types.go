@@ -14,29 +14,48 @@
 
 package orm
 
-type TableInfo struct {
-	tableName string
+type unionType string
+
+type Option struct {
+	table      []string
+	tableAlias map[string]string
+	field      []string
+	fieldAlias map[string]string
+	where      []string
+	page       string
+	limit      string
+	lock       bool
+	fetchSql   bool
+	distinct   bool
+	join       []map[string]string
+	union      []interface{}
+	unionType  unionType
+	group      string
+	having     string
+	order      []string
+	force      string
+	comment    string
 }
 
 type Builder interface {
+	selects(option Option) string // build select sql
 }
 
 type QueryParser interface {
-	Connect(alias string) QueryParser // change current database connection
-	//SetBuilder()                     // set current builder
-	//Builder() Builder                // get current builder
-	GetTable() string      // get current table name, which contains table prefix
-	Table(tableName string) QueryParser // set default table name, tableName should not contains table prefix
-	//ParseSqlTable(sql string) string // replace __TABLE_NAME__ in sql with table name in lowercase, which contains table prefix
-	Query(query string, args ...interface{}) ([]map[string]interface{}, error)  // execute sql query, return data set
-	Exec(query string, args ...interface{}) (int64, error)   // execute sql query
+	Connection() *driverAlias // get query current sql connection
+	Connect(alias string) QueryParser                                          // change current database connection
+	Builder() Builder                                                          // get current builder
+	GetTable() string                                                          // get current table name, which contains table prefix
+	Table(tableName interface{}) QueryParser                                   // set default table name, tableName should not contains table prefix
+	Query(query string, args ...interface{}) ([]map[string]interface{}, error) // execute sql query, return data set
+	Exec(query string, args ...interface{}) (int64, error)                     // execute sql query
 	//LastInsID()                      // get last insert id
-	LastSql() string                 // get last execute sql
+	LastSql() string // get last execute sql
 	//Transaction()                    // execute sql database transaction
 	//StartTrans()                     // start transaction
 	//Commit()                         // commit transaction
 	//Rollback()                       // rollback transaction
-	//Value()                          // retrieves field value
+	Value(fieldName string) (interface{}, error) // retrieves field value
 	//PartitionTableName()             // retrieves table partition name
 	//Partition()                      // set table partition name's rule
 	//Column()                         // retrieves column data set
@@ -48,9 +67,10 @@ type QueryParser interface {
 	//SetField()                       // set field's value
 	//SetInc()                         // set field's increment step
 	//SetDec()                         // set field's decrement step
-	//Join()                           // assemble join clause
-	//Union()                          // assemble union clause
-	//Field()                          // assemble query fields
+	Join(join ...string) QueryParser // assemble join clause
+	Union(union interface{}) QueryParser // assemble union clause
+	UnionAll(union interface{}) QueryParser // assemble union clause
+	Field(field interface{}) QueryParser // assemble query fields
 	//Where()                          // assemble query condition
 	//WhereOr()                        // assemble or query condition
 	//WhereXor()                       // assemble xor query condition
@@ -68,11 +88,13 @@ type QueryParser interface {
 	//WhereTime()                      // assemble time query condition
 	//Limit()                          // assemble limit clause
 	//Page()                           // assemble page query options
-	//Order()                          // assemble order clause
-	//Group()                          // assemble group clause
-	//Having()                         // assemble having clause
-	//Lock()                           // assemble for update clause
-	//Distinct()                       // assemble distinct clause
+	Comment(comment string) QueryParser // assemble sql comment
+	Order(order interface{}) QueryParser // assemble order clause
+	Group(group string) QueryParser      // assemble group clause
+	Having(having string) QueryParser    // assemble having clause
+	Lock() QueryParser                 // assemble for update clause
+	Force(index string) QueryParser    // assemble for update clause
+	Distinct() QueryParser // assemble distinct clause
 	//SetPK()                          // set table primary key
 	//TableInfo()                      // retrieves table's information, which contains fields、type、bind、pk
 	//Insert()                         // insert data
@@ -82,7 +104,7 @@ type QueryParser interface {
 	//Update()                         // update data set
 	//UpdateBatch()                    // batch update data set
 	//Select()                         // select multiple data set
-	//Find()                           // get one data set
-	//BuildSql()                       // retrieves query sql, don't execute sql actually
+	Find() (interface{}, error) // get one data set
+	BuildSql(sub bool) string                       // retrieves query sql, don't execute sql actually
 	//Delete()                         // delete query
 }
