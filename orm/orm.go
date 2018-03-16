@@ -49,14 +49,14 @@ func (l *Log) log(err error) {
 }
 
 // NewOrm return the query parser
-// if tableAlias is empty, default tableAlias will be assembled to QueryParser
+// if alias is empty, default alias will be assembled to QueryParser
 func NewOrm(alias string) (QueryParser, error) {
 	if alias == "" {
 		alias = linkedCache.Default
 	}
 	aliasDriver, ok := linkedCache.link[alias]
 	if !ok {
-		return nil, fmt.Errorf("tableAlias driver %s have not registered", alias)
+		return nil, fmt.Errorf("alias driver %s have not registered", alias)
 	}
 	var parser QueryParser
 
@@ -64,7 +64,7 @@ func NewOrm(alias string) (QueryParser, error) {
 	case TypedMySQL:
 		parser = newMysqlQuery(aliasDriver)
 	default:
-		return nil, fmt.Errorf("tableAlias %s of parse query not found", aliasDriver.DriverName)
+		return nil, fmt.Errorf("alias %s of parse query not found", aliasDriver.DriverName)
 	}
 	return parser, nil
 }

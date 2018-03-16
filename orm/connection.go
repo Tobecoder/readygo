@@ -34,7 +34,7 @@ type connection struct {
 	link    map[string]*driverAlias
 	Default string
 }
-// add add tableAlias name of driver
+// add add alias name of driver
 func (conn *connection) add(aliasName string, driverAlias *driverAlias) (added bool) {
 	conn.Lock()
 	defer conn.Unlock()
@@ -45,7 +45,7 @@ func (conn *connection) add(aliasName string, driverAlias *driverAlias) (added b
 	return
 }
 
-// driverAlias describe database driver by tableAlias name
+// driverAlias describe database driver by alias name
 type driverAlias struct {
 	Name           string
 	DriverName     string
@@ -109,26 +109,26 @@ func RegisterDataBase(config DbConfig) error {
 	return nil
 }
 
-// SetMaxIdleConns Change the max idle connections for *sql.DB, use specify database tableAlias name
+// SetMaxIdleConns Change the max idle connections for *sql.DB, use specify database alias name
 func SetMaxIdleConns(aliasName string, maxIdleConns int) {
 	alias := getDbWithAlias(aliasName)
 	alias.MaxIdleConns = maxIdleConns
 	alias.Db.SetMaxIdleConns(maxIdleConns)
 }
 
-// SetMaxOpenConns Change the max open conns for *sql.DB, use specify database tableAlias name
+// SetMaxOpenConns Change the max open conns for *sql.DB, use specify database alias name
 func SetMaxOpenConns(aliasName string, maxOpenConns int) {
 	alias := getDbWithAlias(aliasName)
 	alias.MaxOpenConns = maxOpenConns
 	alias.Db.SetMaxOpenConns(maxOpenConns)
 }
 
-// getDbWithAlias get table driver tableAlias
+// getDbWithAlias get table driver alias
 func getDbWithAlias(aliasName string) *driverAlias {
 	if al, ok := linkedCache.link[aliasName]; ok {
 		return al
 	}
-	panic(fmt.Errorf("unknown database tableAlias name %s", aliasName))
+	panic(fmt.Errorf("unknown database alias name %s", aliasName))
 }
 
 // AddAliasWithDB add a aliasName for the driver name
@@ -143,7 +143,7 @@ func addAliasWithDB(aliasName, driverName string, db *sql.DB) (*driverAlias, err
 	alias.Db = db
 
 	if !linkedCache.add(aliasName, alias) {
-		return nil, fmt.Errorf("database tableAlias name `%s` already registered, cannot reuse", aliasName)
+		return nil, fmt.Errorf("database alias name `%s` already registered, cannot reuse", aliasName)
 	}
 	return alias, nil
 }

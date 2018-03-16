@@ -38,7 +38,7 @@ func (q *BaseQuery) Connection() *driverAlias {
 }
 
 // Connect change current database connection
-// tableAlias must be registered when RegisterDataBase(config)
+// alias must be registered when RegisterDataBase(config)
 // otherwise Connect will not work
 func (q *BaseQuery) Connect (alias string) QueryParser {
 	driverAlias, ok := linkedCache.link[alias]
