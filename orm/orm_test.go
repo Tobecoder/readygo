@@ -58,7 +58,7 @@ func TestOrm(t *testing.T) {
 	dataSet, _ := orm.Query("SELECT * FROM test_userinfo")
 	data, _ := json.Marshal(dataSet)
 	fmt.Println(string(data))
-	rows, err := orm.Exec("UPDATE test_userinfo set username = ? where uid = ?", "houhou", 6)
+	rows, err := orm.Exec("UPDATE test_userinfo set username = ? where uid = ?", "houhou1", 06)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,12 +67,11 @@ func TestOrm(t *testing.T) {
 
 	//orm.Connect("mysql_dev2")
 	orm.Table("userinfo u").
-		Union(func (query QueryParser){
-		 	query.Table("userdetail d").Field("name")
-		}).
-		Union(func (query QueryParser){
-		 	query.Table("userdetail d").Field("name")
-		}).
+		Where("uid > ? and username = ?", []interface{}{1, "test"}).
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid").
 		Field("uid").
 		Find()
 	t.Fatal("test done")

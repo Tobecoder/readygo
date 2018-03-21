@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 	"strconv"
+	"regexp"
 )
 
 type BaseQuery struct {
@@ -105,7 +106,7 @@ func (q *BaseQuery) Table(tableName interface{}) QueryParser {
 			table = append(table, prefixTable)
 		}
 	}
-	q.option.table = table
+	q.option.table = append(q.option.table, table...)
 	return q
 }
 
@@ -236,7 +237,7 @@ func (q *BaseQuery) Join(join ...string) QueryParser {
 		"condition": joinCondition,
 	}
 	joins = append(joins, entry)
-	q.option.join = joins
+	q.option.join = append(q.option.join, joins...)
 	return q
 }
 
@@ -311,6 +312,74 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 	return q
 }
 
+// WHere assemble where sql clause
+// usage:
+// Where("uid > ? and username = ?", []interface{}{1, "test"})->( uid > ? and username = ? )
+// Where("uid")->uis is NULL
+func (q *BaseQuery) Where(args ...interface{}) QueryParser {
+	if args == nil {
+		return q
+	}
+	var (
+		op interface{}
+		params []interface{}
+		condition interface{}
+	)
+	field := args[0]
+	if len(args) > 1 {
+		op = args[1]
+		params = args[1:]
+	}
+	if len(args) > 2 {
+		condition = args[2]
+	}
+	q.parseWhereExp("AND", field, op, condition, params)
+	return q
+}
+
+// parseWhereExp assemble where options
+func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{}, condition interface{}, params []interface{}) {
+	if q.option.where == nil {
+		q.option.where = make(whereType)
+	}
+	if q.option.where[logic] == nil {
+		q.option.where[logic] = make(map[string][]interface{})
+	}
+
+	where := make(map[string][]interface{})
+	var fieldName string
+	//express where style
+	if op == nil && condition == nil{
+		//eg:Where("uid")->uis is NULL
+		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
+			q.option.where[logic][fieldName] = append(where[fieldName], "null", "")
+		}
+	}else if v, ok := field.(string); ok {
+		//eg:Where("uid > ? and username = ?", []interface{}{1, "test"})
+		regex, _ := regexp.Compile(`[,=><'"(\s]`)
+		if regex.MatchString(v) {
+			fieldName = "_exp"
+			q.option.where[logic][fieldName] = append(q.option.where[logic][fieldName], "exp", v)
+			if op == nil{
+				return
+			}
+			if bindArgs, ok := op.([]interface{}); ok{
+				q.bind(bindArgs)
+			}
+		}
+	}
+}
+
+// bind bind sql args
+func (q *BaseQuery) bind(args interface{}) {
+	bind := make([]interface{}, 0)
+	switch v := args.(type){
+	case []interface{}:
+		bind = append(bind, v...)
+	}
+	q.option.bind = append(bind, bind...)
+}
+
 // Comment assemble sql comment
 func (q *BaseQuery) Comment(comment string) QueryParser {
 	q.option.comment = comment
@@ -349,8 +418,6 @@ func (q *BaseQuery) Having(having string) QueryParser {
 }
 
 // Force assemble force index sql clause
-// usage
-// Force
 func (q *BaseQuery) Force(index string) QueryParser {
 	q.option.force = index
 	return q
@@ -373,15 +440,21 @@ func (q *BaseQuery) Find() (interface{}, error){
 	q.option.limit = "1"
 	options := q.parseOptions()
 	sql := q.builder.selects(options)
+	//todo:获取参数绑定
+	//$bind = $this->getBind();
 	fmt.Println(sql)
 	return nil, nil
 }
 
 // BuildSql assemble query sql
-func (q *BaseQuery) BuildSql(sub bool) string {
+func (q *BaseQuery) BuildSql(sub ...bool) string {
 	q.option.fetchSql = true
 	options := q.parseOptions()
-	if sub {
+	var isSub = false
+	if len(sub) > 0 {
+		isSub = sub[0]
+	}
+	if isSub {
 		return "( " + q.builder.selects(options) + " )"
 	}else{
 		return q.builder.selects(options)
@@ -393,9 +466,6 @@ func (q *BaseQuery) parseOptions() Option{
 	options := q.option
 	if len(options.table) == 0 {
 		options.table = []string{q.GetTable()}
-	}
-	if options.where == nil {
-		options.where = make([]string, 0)
 	}
 	if len(options.page) > 0 {
 		pages := strings.Split(options.page, ",")

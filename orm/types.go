@@ -16,12 +16,15 @@ package orm
 
 type unionType string
 
+type whereType map[string]map[string][]interface{}
+
 type Option struct {
 	table      []string
 	tableAlias map[string]string
 	field      []string
 	fieldAlias map[string]string
-	where      []string
+	where      whereType
+	bind	   []interface{}
 	page       string
 	limit      string
 	lock       bool
@@ -71,7 +74,7 @@ type QueryParser interface {
 	Union(union interface{}) QueryParser // assemble union clause
 	UnionAll(union interface{}) QueryParser // assemble union clause
 	Field(field interface{}) QueryParser // assemble query fields
-	//Where()                          // assemble query condition
+	Where(args ...interface{}) QueryParser // assemble query condition
 	//WhereOr()                        // assemble or query condition
 	//WhereXor()                       // assemble xor query condition
 	//WhereNull()                      // assemble null query condition
@@ -105,6 +108,6 @@ type QueryParser interface {
 	//UpdateBatch()                    // batch update data set
 	//Select()                         // select multiple data set
 	Find() (interface{}, error) // get one data set
-	BuildSql(sub bool) string                       // retrieves query sql, don't execute sql actually
+	BuildSql(sub ...bool) string                       // retrieves query sql, don't execute sql actually
 	//Delete()                         // delete query
 }
