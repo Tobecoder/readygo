@@ -42,6 +42,7 @@ type Option struct {
 
 type Builder interface {
 	selects(option Option) string // build select sql
+	escapeStringQuotes(buf []byte, v string) []byte //escape string quotes
 }
 
 type QueryParser interface {

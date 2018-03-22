@@ -58,7 +58,7 @@ func TestOrm(t *testing.T) {
 	dataSet, _ := orm.Query("SELECT * FROM test_userinfo")
 	data, _ := json.Marshal(dataSet)
 	fmt.Println(string(data))
-	rows, err := orm.Exec("UPDATE test_userinfo set username = ? where uid = ?", "houhou1", 06)
+	rows, err := orm.Exec("UPDATE test_userinfo set username = ? where uid = ?", "houhou", "06 and 1=1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,6 +72,10 @@ func TestOrm(t *testing.T) {
 		Find()
 	orm.Table("userinfo u").
 		Where("uid").
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", []interface{}{">", "1"}, []interface{}{"<", 3}, "or").
 		Field("uid").
 		Find()
 	t.Fatal("test done")

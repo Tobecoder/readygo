@@ -17,7 +17,7 @@ package orm
 import (
 	"fmt"
 	"strings"
-	"errors"
+	"strconv"
 )
 
 var (
@@ -61,6 +61,7 @@ var (
 
 type BaseBuilder struct {
 	query QueryParser
+	ins Builder
 }
 
 var _ Builder = new(BaseBuilder)
@@ -146,7 +147,6 @@ func (b *BaseBuilder) parseJoin(option *Option) string {
 	}
 	for _, v := range option.join {
 		table := b.parseTable([]string{v["table"]}, option)
-		fmt.Println(table, v["table"])
 		joinStr += " " + v["type"] + " JOIN " + table
 		if c, ok := v["condition"]; ok && len(c) > 0 {
 			joinStr += " ON " + c
@@ -164,59 +164,94 @@ func (b *BaseBuilder) parseWhere(where whereType, option *Option) string {
 	for logic, whereOptions := range where {
 		var str = make([]string, 0)
 		for field, value := range whereOptions {
-			if len(field) > 0 {
+			if false {
+			} else {
 				str = append(str, " "+logic+" "+b.parseWhereItem(field, value, logic, option))
 			}
 		}
 		if len(str) > 0 {
 			s := strings.Join(str, " ")
 			if len(whereStr) == 0 {
-				s = s[len(logic) + 1:]
+				s = s[len(logic)+1:]
 			}
 			whereStr += s
 		}
 	}
-	if len(whereStr) > 0{
+	if len(whereStr) > 0 {
 		whereStr = " WHERE " + whereStr
 	}
 	return whereStr
 }
 
+// parseWhereItem parse where item
 func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic string, option *Option) string {
 	var (
 		whereStr string
-		exp string
-		val interface{}
-		ok bool
+		exp      string
+		val      interface{}
 	)
 
 	if len(value) == 1 {
-		exp = "eq"
+		exp = "="
 		val = value[0]
 	} else {
-		exp, _ = value[0].(string)
+		switch v := value[0].(type) {
+		case string:
+			exp = v
+		case []interface{}:
+			item := value[len(value)-1]
+			if s, ok := item.(string); ok {
+				var andOr = map[string]int{"AND":1, "OR":1}
+				s = strings.ToUpper(s)
+				if _, ok := andOr[s]; ok {
+					logic = s
+				}
+			}
+			var str []string
+			val = value[0:len(value)-1]
+			if v, ok := val.([]interface{}); ok {
+				for _, vItem := range v {
+					str = append(str, b.parseWhereItem(field, vItem.([]interface{}), logic, option))
+				}
+			}
+			return "( " + strings.Join(str, " "+logic+" ") + " )"
+
+		}
 		val = value[1]
 	}
-	express := strings.ToLower(exp)
-	if exp, ok = expMap[express]; !ok {
-		panic(errors.New("where express error:"+ express))
+
+	// check express operator
+	if !checkOperator(exp) {
+		return whereStr
 	}
 	var (
-		sortNull = map[string]int{"NOT NULL":1, "NULL":1}
+		isNull         = map[string]int{"NOT NULL": 1, "NULL": 1}
+		compareAndLike = map[string]int{"=":1, "<>":1, ">":1, ">=":1, "<":1, "<=":1, "LIKE":1, "NOT LIKE":1}
 	)
-
-
-	if len(exp) == 0 {
-
-	}else if exp == "EXP" {
+	exp = strings.ToUpper(exp)
+	if _, ok := compareAndLike[exp]; ok {
+		whereStr += field + " " + exp + " " + b.parseStringValue(val, field)
+	} else if exp == "EXP" {
 		s, ok := val.(string)
 		if ok {
 			whereStr += "( " + s + " )"
 		}
-	}else if _, ok := sortNull[exp]; ok {
+	} else if _, ok := isNull[exp]; ok {
 		whereStr += field + " IS " + exp
 	}
 	return whereStr
+}
+
+// parseStringValue parse value interface{} to string
+func (b *BaseBuilder) parseStringValue(value interface{}, field string) string {
+	var str string
+	switch v := value.(type) {
+	case string:
+		str = string(b.escapeStringQuotes([]byte{}, v))
+	case int:
+		str = strconv.Itoa(v)
+	}
+	return str
 }
 
 // parseGroup assemble field group clause
@@ -317,4 +352,27 @@ func (b *BaseBuilder) parseForce(force string) string {
 		forceStr = fmt.Sprintf(" FORCE INDEX ( %s ) ", force)
 	}
 	return forceStr
+}
+
+// checkOperator check whether operator in map expMap
+func checkOperator(exp string) bool{
+	var exist bool
+	for _, v := range expMap{
+		if v == exp{
+			exist = true
+			break
+		}
+	}
+	if exist == false {
+		exp := strings.ToLower(exp)
+		if _, ok := expMap[exp]; ok {
+			exist = true
+		}
+	}
+	return exist
+}
+
+// escapeStringQuotes is similar to escapeBytesQuotes but for string.
+func (b *BaseBuilder)escapeStringQuotes(buf []byte, v string) []byte {
+	return b.ins.escapeStringQuotes(buf, v)
 }

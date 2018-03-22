@@ -25,5 +25,6 @@ func newMysqlQuery(aliasDriver *driverAlias) QueryParser {
 	q := new(mysqlQuery)
 	q.driver = aliasDriver
 	q.builder = newMysqlBuilder(q)
+	q.ins = q
 	return q
 }

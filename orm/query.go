@@ -27,6 +27,7 @@ type BaseQuery struct {
 	lastSql string
 	builder Builder
 	option Option
+	ins QueryParser
 }
 
 var _ QueryParser = new(BaseQuery)
@@ -316,6 +317,9 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 // usage:
 // Where("uid > ? and username = ?", []interface{}{1, "test"})->( uid > ? and username = ? )
 // Where("uid")->uis is NULL
+// Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
+//     generate sql as ->
+//     which support unlimited []interface{}
 func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 	if args == nil {
 		return q
@@ -347,25 +351,28 @@ func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{
 	}
 
 	where := make(map[string][]interface{})
-	var fieldName string
+	regex, _ := regexp.Compile(`[,=><'"(\s]`)
 	//express where style
-	if op == nil && condition == nil{
+	if v, ok := field.(string); ok && regex.MatchString(v) {
+		//eg:Where("uid > ? and username = ?", []interface{}{1, "test"})
+		fieldName := "_exp"
+		q.option.where[logic][fieldName] = append(q.option.where[logic][fieldName], "exp", v)
+		if op == nil{
+			return
+		}
+		if bindArgs, ok := op.([]interface{}); ok{
+			q.bind(bindArgs)
+		}
+	}else if op == nil && condition == nil{
 		//eg:Where("uid")->uis is NULL
 		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
 			q.option.where[logic][fieldName] = append(where[fieldName], "null", "")
 		}
-	}else if v, ok := field.(string); ok {
-		//eg:Where("uid > ? and username = ?", []interface{}{1, "test"})
-		regex, _ := regexp.Compile(`[,=><'"(\s]`)
-		if regex.MatchString(v) {
-			fieldName = "_exp"
-			q.option.where[logic][fieldName] = append(q.option.where[logic][fieldName], "exp", v)
-			if op == nil{
-				return
-			}
-			if bindArgs, ok := op.([]interface{}); ok{
-				q.bind(bindArgs)
-			}
+	}else if _, ok := op.([]interface{}); ok {
+		//eg:Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
+		//support unlimited []interface{}
+		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
+			q.option.where[logic][fieldName] = append(where[fieldName], params...)
 		}
 	}
 }

@@ -13,3 +13,16 @@
 // limitations under the License.
 
 package orm
+
+// reserveBuffer checks cap(buf) and expand buffer to len(buf) + appendSize.
+// If cap(buf) is not enough, reallocate new buffer.
+func reserveBuffer(buf []byte, appendSize int) []byte {
+	newSize := len(buf) + appendSize
+	if cap(buf) < newSize {
+		// Grow buffer exponentially
+		newBuf := make([]byte, len(buf)*2+appendSize)
+		copy(newBuf, buf)
+		buf = newBuf
+	}
+	return buf[:newSize]
+}
