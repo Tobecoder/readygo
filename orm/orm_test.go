@@ -78,5 +78,13 @@ func TestOrm(t *testing.T) {
 		Where("uid", []interface{}{">", "1"}, []interface{}{"<", 3}, "or").
 		Field("uid").
 		Find()
+	orm.Table("userinfo u").
+		Where("uid", "null").
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", 1).
+		Field("uid").
+		Find()
 	t.Fatal("test done")
 }

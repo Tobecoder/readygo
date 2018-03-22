@@ -221,7 +221,8 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 	}
 
 	// check express operator
-	if !checkOperator(exp) {
+	exp, ok := checkOperator(exp)
+	if !ok {
 		return whereStr
 	}
 	var (
@@ -355,8 +356,7 @@ func (b *BaseBuilder) parseForce(force string) string {
 }
 
 // checkOperator check whether operator in map expMap
-func checkOperator(exp string) bool{
-	var exist bool
+func checkOperator(exp string) (express string, exist bool){
 	for _, v := range expMap{
 		if v == exp{
 			exist = true
@@ -365,11 +365,12 @@ func checkOperator(exp string) bool{
 	}
 	if exist == false {
 		exp := strings.ToLower(exp)
-		if _, ok := expMap[exp]; ok {
+		if exp, ok := expMap[exp]; ok {
 			exist = true
+			express = exp
 		}
 	}
-	return exist
+	return
 }
 
 // escapeStringQuotes is similar to escapeBytesQuotes but for string.

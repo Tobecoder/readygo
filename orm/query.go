@@ -318,8 +318,10 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 // Where("uid > ? and username = ?", []interface{}{1, "test"})->( uid > ? and username = ? )
 // Where("uid")->uis is NULL
 // Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
-//     generate sql as ->
+//     generate sql as -> ( uid > 1 OR uid < 3 )
 //     which support unlimited []interface{}
+// Where("uid", "null") -> uid IS NULL
+// Where("uid", 1) -> uid = 1
 func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 	if args == nil {
 		return q
@@ -350,10 +352,13 @@ func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{
 		q.option.where[logic] = make(map[string][]interface{})
 	}
 
-	where := make(map[string][]interface{})
-	regex, _ := regexp.Compile(`[,=><'"(\s]`)
+	var (
+		where = make(map[string][]interface{})
+	)
+
+	regex, err := regexp.Compile(`[,=><'"(\s]`)
 	//express where style
-	if v, ok := field.(string); ok && regex.MatchString(v) {
+	if v, ok := field.(string); ok && err == nil && regex.MatchString(v) {
 		//eg:Where("uid > ? and username = ?", []interface{}{1, "test"})
 		fieldName := "_exp"
 		q.option.where[logic][fieldName] = append(q.option.where[logic][fieldName], "exp", v)
@@ -373,6 +378,18 @@ func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{
 		//support unlimited []interface{}
 		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
 			q.option.where[logic][fieldName] = append(where[fieldName], params...)
+		}
+	}else if v, ok := op.(string); ok {
+		nullMap := map[string]int{"null":1,"notnull":1,"not null":1}
+		//eg:Where("uid", "null")
+		if _, ok := nullMap[strings.ToLower(v)]; ok{
+			if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
+				q.option.where[logic][fieldName] = append(where[fieldName], v, "")
+			}
+		}
+	}else if condition == nil {// equal
+		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
+			q.option.where[logic][fieldName] = append(where[fieldName], "eq", op)
 		}
 	}
 }
