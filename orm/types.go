@@ -14,17 +14,29 @@
 
 package orm
 
+import "container/list"
+
 type unionType string
 
+// Hierarchy is
+// 1st,logic operator.such as and,or and so on
+// 2nd,field name,such as uid, username and so on
+// 3rd,condition presents where condition
 type whereType map[string]map[string][]interface{}
+
+type whereList map[string]*list.List
+
+type where struct {
+	whereMap 	whereType
+	list		*list.List
+}
 
 type Option struct {
 	table      []string
 	tableAlias map[string]string
 	field      []string
 	fieldAlias map[string]string
-	where      whereType
-	bind	   []interface{}
+	where      where
 	page       string
 	limit      string
 	lock       bool
@@ -112,4 +124,5 @@ type QueryParser interface {
 	BuildSql(sub ...bool) string                       // retrieves query sql, don't execute sql actually
 	//Delete()                         // delete query
 	bind(args interface{}) // bind sql args
+	getBind() []interface{} // get bind sql args
 }

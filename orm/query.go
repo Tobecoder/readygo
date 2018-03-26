@@ -19,6 +19,7 @@ import (
 	"strings"
 	"strconv"
 	"regexp"
+	"container/list"
 )
 
 type BaseQuery struct {
@@ -28,6 +29,7 @@ type BaseQuery struct {
 	builder Builder
 	option Option
 	ins QueryParser
+	bindArgs []interface{}
 }
 
 var _ QueryParser = new(BaseQuery)
@@ -318,15 +320,22 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 // Where("uid > ? and username = ?", []interface{}{1, "test"})->( uid > ? and username = ? )
 // Where("uid") -> uis is NULL
 // Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
-//     generate sql as -> ( uid > 1 OR uid < 3 )
+//     generate sql as -> ( uid > ? OR uid < ? )
 //     which support unlimited []interface{}
 // Where("uid", "null") -> uid IS NULL
-// Where("uid", 1) -> uid = 1
+// Where("uid", 1) -> uid = ?
 // Where("uid", "in", func (query QueryParser){
 //     query.Table("userdetail").Field("uid")
 // }) -> uid IN ( SELECT uid FROM test_userdetail  )
-// Where("uid", "in", "1,2,3") -> uid IN (1,2,3)
-// Where("uid", "in", []interface{}{1,2,3}) -> uid IN (1,2,3)
+// Where("uid", "in", "1,2,3") -> uid IN (?,?,?)
+// Where("uid", "in", []interface{}{1,2,3}) -> uid IN (?,?,?)
+// Where("uid", "between", []interface{}{1,2}) -> uid BETWEEN ? AND ?
+// Where("uid", "between", "1,10") -> uid BETWEEN ? AND ?
+// Where("uid", "exists", func (query QueryParser){
+//     query.Table("userdetail").Field("uid")
+// })
+// Where("uid", "exists", "select uid from test_userdetail")
+//
 func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 	if args == nil {
 		return q
@@ -350,58 +359,65 @@ func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 
 // parseWhereExp assemble where options
 func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{}, condition interface{}, params []interface{}) {
-	if q.option.where == nil {
-		q.option.where = make(whereType)
+	if q.option.where.whereMap == nil {
+		q.option.where.whereMap = make(whereType)
+		// init where list
+		q.option.where.list = list.New()
 	}
-	if q.option.where[logic] == nil {
-		q.option.where[logic] = make(map[string][]interface{})
+	if q.option.where.whereMap[logic] == nil {
+		q.option.where.whereMap[logic] = make(map[string][]interface{})
+		// ensure where sort
+		listNew := make(whereList)
+		listNew[logic] = list.New()
+		q.option.where.list.PushBack(listNew)
 	}
 
 	var (
 		where = make(map[string][]interface{})
+		fieldName string
 	)
 
 	regex, err := regexp.Compile(`[,=><'"(\s]`)
 	//express where style
 	if v, ok := field.(string); ok && err == nil && regex.MatchString(v) {
 		//eg:Where("uid > ? and username = ?", []interface{}{1, "test"})
-		fieldName := "_exp"
-		q.option.where[logic][fieldName] = append(q.option.where[logic][fieldName], "exp", v)
-		if op == nil{
-			return
-		}
-		if bindArgs, ok := op.([]interface{}); ok{
-			q.bind(bindArgs)
+		fieldName = "_exp"
+		q.option.where.whereMap[logic][fieldName] = append(q.option.where.whereMap[logic][fieldName], "exp", v)
+		if op != nil{
+			if bindArgs, ok := op.([]interface{}); ok{
+				q.bind(bindArgs)
+			}
 		}
 	}else if op == nil && condition == nil{
 		//eg:Where("uid")->uis is NULL
-		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
-			q.option.where[logic][fieldName] = append(where[fieldName], "null", "")
+		if fieldName, ok = field.(string); ok && len(fieldName) > 0 {
+			q.option.where.whereMap[logic][fieldName] = append(where[fieldName], "null", "")
 		}
 	}else if _, ok := op.([]interface{}); ok {
 		//eg:Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
 		//support unlimited []interface{}
-		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
-			q.option.where[logic][fieldName] = append(where[fieldName], params...)
+		if fieldName, ok = field.(string); ok && len(fieldName) > 0 {
+			q.option.where.whereMap[logic][fieldName] = append(where[fieldName], params...)
+		}
+	}else if condition == nil {// equal
+		if fieldName, ok = field.(string); ok && len(fieldName) > 0 {
+			q.option.where.whereMap[logic][fieldName] = append(where[fieldName], "eq", op)
 		}
 	}else if v, ok := op.(string); ok {
 		nullMap := map[string]int{"null":1,"notnull":1,"not null":1}
 		//eg:Where("uid", "null")
 		if _, ok := nullMap[strings.ToLower(v)]; ok{
-			if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
-				q.option.where[logic][fieldName] = append(where[fieldName], v, "")
+			if fieldName, ok = field.(string); ok && len(fieldName) > 0 {
+				q.option.where.whereMap[logic][fieldName] = append(where[fieldName], v, "")
 			}
-		}else{
+		}else if condition != nil{
 			// default operation
-			if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
-				q.option.where[logic][fieldName] = append(where[fieldName], op, condition)
+			if fieldName, ok = field.(string); ok && len(fieldName) > 0 {
+				q.option.where.whereMap[logic][fieldName] = append(where[fieldName], op, condition)
 			}
-		}
-	}else if condition == nil {// equal
-		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
-			q.option.where[logic][fieldName] = append(where[fieldName], "eq", op)
 		}
 	}
+	q.option.where.list.Back().Value.(whereList)[logic].PushBack(fieldName)
 }
 
 // bind bind sql args
@@ -413,7 +429,7 @@ func (q *BaseQuery) bind(args interface{}) {
 	case interface{}:
 		bind = append(bind, v)
 	}
-	q.option.bind = append(bind, bind...)
+	q.bindArgs = append(q.bindArgs, bind...)
 }
 
 // Comment assemble sql comment
@@ -476,10 +492,17 @@ func (q *BaseQuery) Find() (interface{}, error){
 	q.option.limit = "1"
 	options := q.parseOptions()
 	sql := q.builder.selects(options)
-	//todo:获取参数绑定
-	//$bind = $this->getBind();
+	bindArgs := q.getBind()
+	fmt.Println(bindArgs)
 	fmt.Println(sql)
 	return nil, nil
+}
+
+// getBind returns previous bind args
+func (q *BaseQuery) getBind() []interface{}{
+	args := q.bindArgs
+	q.bindArgs = make([]interface{}, 0)
+	return args
 }
 
 // BuildSql assemble query sql

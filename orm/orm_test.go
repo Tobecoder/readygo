@@ -100,5 +100,30 @@ func TestOrm(t *testing.T) {
 		Where("uid", "in", []interface{}{1,2,3}).
 		Field("uid").
 		Find()
+	orm.Table("userinfo u").
+		Where("uid", "between", []interface{}{1,2}).
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", "between", "1,10").
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", "exists", func (query QueryParser){
+			query.Table("userdetail").Field("uid")
+		}).
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", "exists", "select uid from test_userdetail").
+		Field("uid").
+		Find()
+	orm.Table("userinfo").
+		Where("created", "between", []interface{}{"2017-12-29 00:00:00", "2018-01-15 14:18:35"}).
+		Where("aaa", "bbb").
+		Where("username", "test").
+		Where("uid", "in", func (parser QueryParser) {
+			parser.Table("userinfo a").Where("uid", ">", 1).Field("uid")
+		}).Find()
 	t.Fatal("test done")
 }

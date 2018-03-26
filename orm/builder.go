@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 	"strconv"
+	"container/list"
 )
 
 var (
@@ -156,17 +157,35 @@ func (b *BaseBuilder) parseJoin(option *Option) string {
 }
 
 // parseWhere parse where sql clause
-func (b *BaseBuilder) parseWhere(where whereType, option *Option) string {
+func (b *BaseBuilder) parseWhere(where where, option *Option) string {
 	var whereStr string
-	if where == nil {
+	if where.whereMap == nil {
 		return whereStr
 	}
-	for logic, whereOptions := range where {
-		var str = make([]string, 0)
-		for field, value := range whereOptions {
-			if false {
-			} else {
-				str = append(str, " "+logic+" "+b.parseWhereItem(field, value, logic, option))
+	for {
+		element := where.list.Front()
+		if element == nil {
+			break
+		}
+		var (
+			logic string
+			e *list.List
+			str = make([]string, 0)
+		)
+	nextElement:
+		for logic, e = range element.Value.(whereList) {
+			for {
+				v := e.Front()
+				if v == nil {
+					break nextElement
+				}
+				field := v.Value.(string)
+				value := where.whereMap[logic][field]
+				if false {
+				} else {
+					str = append(str, " "+logic+" "+b.parseWhereItem(field, value, logic, option))
+				}
+				e.Remove(v)
 			}
 		}
 		if len(str) > 0 {
@@ -176,6 +195,7 @@ func (b *BaseBuilder) parseWhere(where whereType, option *Option) string {
 			}
 			whereStr += s
 		}
+		where.list.Remove(element)
 	}
 	if len(whereStr) > 0 {
 		whereStr = " WHERE " + whereStr
@@ -199,6 +219,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		case string:
 			exp = v
 		case []interface{}:
+			// eg: query.Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
 			item := value[len(value)-1]
 			if s, ok := item.(string); ok {
 				var andOr = map[string]int{"AND":1, "OR":1}
@@ -219,7 +240,6 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}
 		val = value[1]
 	}
-
 	// check express operator
 	exp, ok := checkOperator(exp)
 	if !ok {
@@ -229,24 +249,29 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		isNull         = map[string]int{"NOT NULL": 1, "NULL": 1}
 		compareAndLike = map[string]int{"=":1, "<>":1, ">":1, ">=":1, "<":1, "<=":1, "LIKE":1, "NOT LIKE":1}
 		isIn = map[string]int{"IN":1, "NOT IN":1}
+		isBetween = map[string]int{"NOT BETWEEN":1, "BETWEEN":1}
+		isExist = map[string]int{"NOT EXISTS":1, "EXISTS":1}
 	)
 	exp = strings.ToUpper(exp)
 	if _, ok := compareAndLike[exp]; ok {
-		whereStr += field + " " + exp + " " + b.parseStringValue(val, field)
+		whereStr += field + " " + exp + " ?"
+		b.query.bind(b.parseStringValue(val, field))
 	} else if exp == "EXP" {
 		s, ok := val.(string)
 		if ok {
-			whereStr += "( " + s + " )"
+			whereStr += "( " + b.parseStringValue(s, field) + " )"
 		}
+		// bind args had been processed by query.Where
 	} else if _, ok := isNull[exp]; ok {
-		whereStr += field + " IS " + exp
+		whereStr += field + " IS ?"
+		b.query.bind(exp)
 	} else if _, ok := isIn[exp]; ok {
 		if v, ok := val.(func (QueryParser)); ok {
 			whereStr += field + " " + exp + " " + b.parseClosure(v, true)
 		}else{
 			var (
 				inSlice = make([]string, 0)
-				bind = make([]string, 0)
+				placeHolder = make([]string, 0)
 			)
 			if instr, ok := val.(string);ok{
 				inSlice = strings.Split(instr, ",")
@@ -255,13 +280,43 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 					inSlice = append(inSlice, b.parseStringValue(substr, field))
 				}
 			}
-			for range inSlice {
-				bind = append(bind, "?")
+			bindArgs := make([]interface{}, len(inSlice))
+			for k, args := range inSlice {
+				placeHolder = append(placeHolder, "?")
+				bindArgs[k] = args
 			}
-			b.query.bind(inSlice)
+			b.query.bind(bindArgs)
 
-			zone := strings.Join(bind, ",")
+			zone := strings.Join(placeHolder, ",")
 			whereStr += field + " " + exp + " (" + zone + ")"
+		}
+	}else if _, ok := isBetween[exp]; ok {
+		var (
+			betweenSlice = make([]string, 2)
+		)
+		if between, ok := val.(string);ok{
+			betweenSlice = strings.SplitN(between, ",", 2)
+			if len(betweenSlice) < 2 {
+				return whereStr
+			}
+		}else if between, ok := val.([]interface{});ok{
+			if len(between) < 2 {
+				return whereStr
+			}
+			betweenSlice[0] = b.parseStringValue(between[0], field)
+			betweenSlice[1] = b.parseStringValue(between[1], field)
+		}
+
+		b.query.bind(betweenSlice[0])
+		b.query.bind(betweenSlice[1])
+
+		between := strings.Join([]string{"?", "?"}, " AND ")
+		whereStr += field + " " + exp + " " + between
+	}else if _, ok := isExist[exp]; ok {
+		if v, ok := val.(func (QueryParser)); ok {
+			whereStr += exp + " " + b.parseClosure(v, true)
+		}else if v, ok := val.(string); ok{
+			whereStr += exp + " (" + b.parseStringValue(v, field) + ") "
 		}
 	}
 	return whereStr
@@ -358,7 +413,9 @@ func (b *BaseBuilder) parseUnion(union []interface{}, unionType unionType) strin
 func (b *BaseBuilder) parseClosure(call QueryClosure, sub bool) string {
 	query := newMysqlQuery(b.query.Connection())
 	call(query)
-	return query.BuildSql(sub)
+	sql := query.BuildSql(sub)
+	b.query.bind(query.getBind())
+	return sql
 }
 
 // parseLock assemble for update sql clause
