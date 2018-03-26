@@ -111,4 +111,5 @@ type QueryParser interface {
 	Find() (interface{}, error) // get one data set
 	BuildSql(sub ...bool) string                       // retrieves query sql, don't execute sql actually
 	//Delete()                         // delete query
+	bind(args interface{}) // bind sql args
 }

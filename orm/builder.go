@@ -228,6 +228,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 	var (
 		isNull         = map[string]int{"NOT NULL": 1, "NULL": 1}
 		compareAndLike = map[string]int{"=":1, "<>":1, ">":1, ">=":1, "<":1, "<=":1, "LIKE":1, "NOT LIKE":1}
+		isIn = map[string]int{"IN":1, "NOT IN":1}
 	)
 	exp = strings.ToUpper(exp)
 	if _, ok := compareAndLike[exp]; ok {
@@ -239,6 +240,29 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}
 	} else if _, ok := isNull[exp]; ok {
 		whereStr += field + " IS " + exp
+	} else if _, ok := isIn[exp]; ok {
+		if v, ok := val.(func (QueryParser)); ok {
+			whereStr += field + " " + exp + " " + b.parseClosure(v, true)
+		}else{
+			var (
+				inSlice = make([]string, 0)
+				bind = make([]string, 0)
+			)
+			if instr, ok := val.(string);ok{
+				inSlice = strings.Split(instr, ",")
+			}else if instr, ok := val.([]interface{});ok{
+				for _, substr := range instr {
+					inSlice = append(inSlice, b.parseStringValue(substr, field))
+				}
+			}
+			for range inSlice {
+				bind = append(bind, "?")
+			}
+			b.query.bind(inSlice)
+
+			zone := strings.Join(bind, ",")
+			whereStr += field + " " + exp + " (" + zone + ")"
+		}
 	}
 	return whereStr
 }
@@ -251,6 +275,14 @@ func (b *BaseBuilder) parseStringValue(value interface{}, field string) string {
 		str = string(b.escapeStringQuotes([]byte{}, v))
 	case int:
 		str = strconv.Itoa(v)
+	case bool:
+		if v{
+			str = "1"
+		}else{
+			str = "0"
+		}
+	case nil:
+		str = "null"
 	}
 	return str
 }
@@ -322,6 +354,7 @@ func (b *BaseBuilder) parseUnion(union []interface{}, unionType unionType) strin
 }
 
 // parseClosure parse closure call, which return assemble sql
+// arg sub default value is false
 func (b *BaseBuilder) parseClosure(call QueryClosure, sub bool) string {
 	query := newMysqlQuery(b.query.Connection())
 	call(query)
@@ -360,14 +393,15 @@ func checkOperator(exp string) (express string, exist bool){
 	for _, v := range expMap{
 		if v == exp{
 			exist = true
+			express = v
 			break
 		}
 	}
 	if exist == false {
 		exp := strings.ToLower(exp)
-		if exp, ok := expMap[exp]; ok {
+		if v, ok := expMap[exp]; ok {
 			exist = true
-			express = exp
+			express = v
 		}
 	}
 	return

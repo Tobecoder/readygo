@@ -86,5 +86,19 @@ func TestOrm(t *testing.T) {
 		Where("uid", 1).
 		Field("uid").
 		Find()
+	orm.Table("userinfo u").
+		Where("uid", "in", func (query QueryParser){
+			query.Table("userdetail").Field("uid")
+		}).
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", "in", "1,2,3").
+		Field("uid").
+		Find()
+	orm.Table("userinfo u").
+		Where("uid", "in", []interface{}{1,2,3}).
+		Field("uid").
+		Find()
 	t.Fatal("test done")
 }

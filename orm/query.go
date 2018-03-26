@@ -316,12 +316,17 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 // WHere assemble where sql clause
 // usage:
 // Where("uid > ? and username = ?", []interface{}{1, "test"})->( uid > ? and username = ? )
-// Where("uid")->uis is NULL
+// Where("uid") -> uis is NULL
 // Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
 //     generate sql as -> ( uid > 1 OR uid < 3 )
 //     which support unlimited []interface{}
 // Where("uid", "null") -> uid IS NULL
 // Where("uid", 1) -> uid = 1
+// Where("uid", "in", func (query QueryParser){
+//     query.Table("userdetail").Field("uid")
+// }) -> uid IN ( SELECT uid FROM test_userdetail  )
+// Where("uid", "in", "1,2,3") -> uid IN (1,2,3)
+// Where("uid", "in", []interface{}{1,2,3}) -> uid IN (1,2,3)
 func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 	if args == nil {
 		return q
@@ -386,6 +391,11 @@ func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{
 			if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
 				q.option.where[logic][fieldName] = append(where[fieldName], v, "")
 			}
+		}else{
+			// default operation
+			if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
+				q.option.where[logic][fieldName] = append(where[fieldName], op, condition)
+			}
 		}
 	}else if condition == nil {// equal
 		if fieldName, ok := field.(string); ok && len(fieldName) > 0 {
@@ -400,6 +410,8 @@ func (q *BaseQuery) bind(args interface{}) {
 	switch v := args.(type){
 	case []interface{}:
 		bind = append(bind, v...)
+	case interface{}:
+		bind = append(bind, v)
 	}
 	q.option.bind = append(bind, bind...)
 }
