@@ -37,7 +37,7 @@ var _ QueryParser = new(BaseQuery)
 type QueryClosure func (QueryParser)
 
 // Connection retrieves current sql connection
-func (q *BaseQuery) Connection() *driverAlias {
+func (q *BaseQuery) connection() *driverAlias {
 	return q.driver
 }
 
@@ -64,6 +64,7 @@ func (q *BaseQuery) GetTable() string {
 
 // Table set default table name, tableName should not contains table prefix
 // usage:
+// Table(subSql + " a") sub sql clause
 // Table("example_user")
 // Table("example_user user,example_role role")
 // Table("example_user user")
@@ -76,6 +77,7 @@ func (q *BaseQuery) Table(tableName interface{}) QueryParser {
 	case string:
 		if strings.Contains(v, ")"){
 			//sub query
+			table = append(table, v)
 		}else if strings.Contains(v, ","){
 			tables := strings.Split(v, ",")
 			for _, t := range tables {
@@ -335,17 +337,26 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 //     query.Table("userdetail").Field("uid")
 // })
 // Where("uid", "exists", "select uid from test_userdetail")
-//
+// Where(func(parser QueryParser){
+//     parser.Where("id", 1).Where("username", "hehe")
+// })
 func (q *BaseQuery) Where(args ...interface{}) QueryParser {
-	if args == nil {
-		return q
-	}
+	field, op, condition, params := q.parseWhereArgs(args...)
+	q.parseWhereExp("AND", field, op, condition, params)
+	return q
+}
+
+func (q *BaseQuery) parseWhereArgs(args ...interface{}) (interface{}, interface{}, interface{}, []interface{}){
 	var (
+		field interface{}
 		op interface{}
 		params []interface{}
 		condition interface{}
 	)
-	field := args[0]
+	if args == nil {
+		return field, op, condition, params
+	}
+	field = args[0]
 	if len(args) > 1 {
 		op = args[1]
 		params = args[1:]
@@ -353,7 +364,13 @@ func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 	if len(args) > 2 {
 		condition = args[2]
 	}
-	q.parseWhereExp("AND", field, op, condition, params)
+	return field, op, condition, params
+}
+
+// WhereOr assemble where sql clause
+func (q *BaseQuery) WhereOr(args ...interface{}) QueryParser{
+	field, op, condition, params := q.parseWhereArgs(args...)
+	q.parseWhereExp("OR", field, op, condition, params)
 	return q
 }
 
@@ -376,6 +393,13 @@ func (q *BaseQuery) parseWhereExp(logic string, field interface{}, op interface{
 		where = make(map[string][]interface{})
 		fieldName string
 	)
+
+	if v, ok := field.(func (QueryParser)); ok {
+		fieldName = "_closure"
+		q.option.where.whereMap[logic][fieldName] = append(q.option.where.whereMap[logic][fieldName], v)
+		q.option.where.list.Back().Value.(whereList)[logic].PushBack(fieldName)
+		return
+	}
 
 	regex, err := regexp.Compile(`[,=><'"(\s]`)
 	//express where style
@@ -554,4 +578,8 @@ func (q *BaseQuery) parseOptions() Option{
 	}
 	q.option = Option{}
 	return options
+}
+
+func (q *BaseQuery) getOption() Option {
+	return q.option
 }

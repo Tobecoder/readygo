@@ -26,11 +26,14 @@ type whereType map[string]map[string][]interface{}
 
 type whereList map[string]*list.List
 
+// where
+// linked map ensure where options FIFO
 type where struct {
 	whereMap 	whereType
 	list		*list.List
 }
 
+// Option query option
 type Option struct {
 	table      []string
 	tableAlias map[string]string
@@ -58,7 +61,8 @@ type Builder interface {
 }
 
 type QueryParser interface {
-	Connection() *driverAlias // get query current sql connection
+	connection() *driverAlias // get query current sql connection
+
 	Connect(alias string) QueryParser                                          // change current database connection
 	Builder() Builder                                                          // get current builder
 	GetTable() string                                                          // get current table name, which contains table prefix
@@ -88,7 +92,7 @@ type QueryParser interface {
 	UnionAll(union interface{}) QueryParser // assemble union clause
 	Field(field interface{}) QueryParser // assemble query fields
 	Where(args ...interface{}) QueryParser // assemble query condition
-	//WhereOr()                        // assemble or query condition
+	WhereOr(args ...interface{}) QueryParser                        // assemble or query condition
 	//WhereXor()                       // assemble xor query condition
 	//WhereNull()                      // assemble null query condition
 	//WhereNotNull()                   // assemble not null query condition
@@ -123,6 +127,8 @@ type QueryParser interface {
 	Find() (interface{}, error) // get one data set
 	BuildSql(sub ...bool) string                       // retrieves query sql, don't execute sql actually
 	//Delete()                         // delete query
+
 	bind(args interface{}) // bind sql args
 	getBind() []interface{} // get bind sql args
+	getOption() Option
 }

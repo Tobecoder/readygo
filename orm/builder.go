@@ -158,6 +158,14 @@ func (b *BaseBuilder) parseJoin(option *Option) string {
 
 // parseWhere parse where sql clause
 func (b *BaseBuilder) parseWhere(where where, option *Option) string {
+	whereStr := b.buildWhere(where, option)
+	if len(whereStr) > 0 {
+		whereStr = " WHERE " + whereStr
+	}
+	return whereStr
+}
+
+func (b *BaseBuilder) buildWhere(where where, option *Option) string {
 	var whereStr string
 	if where.whereMap == nil {
 		return whereStr
@@ -181,7 +189,19 @@ func (b *BaseBuilder) parseWhere(where where, option *Option) string {
 				}
 				field := v.Value.(string)
 				value := where.whereMap[logic][field]
-				if false {
+				if field == "_closure" && len(value) == 1 {
+					var val interface{}
+					if len(value) == 1 {
+						val = value[0]
+					}else{
+						val = value[1]
+					}
+					if call, ok := val.(func (QueryParser)); ok {
+						query := newMysqlQuery(b.query.connection())
+						call(query)
+						options := query.getOption()
+						str = append(str, " "+logic+ " (" + b.buildWhere(options.where, &options) + " )")
+					}
 				} else {
 					str = append(str, " "+logic+" "+b.parseWhereItem(field, value, logic, option))
 				}
@@ -197,9 +217,6 @@ func (b *BaseBuilder) parseWhere(where where, option *Option) string {
 		}
 		where.list.Remove(element)
 	}
-	if len(whereStr) > 0 {
-		whereStr = " WHERE " + whereStr
-	}
 	return whereStr
 }
 
@@ -210,7 +227,6 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		exp      string
 		val      interface{}
 	)
-
 	if len(value) == 1 {
 		exp = "="
 		val = value[0]
@@ -222,7 +238,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 			// eg: query.Where("uid", []interface{}{">", 1}, []interface{}{"<", 3}, "or")
 			item := value[len(value)-1]
 			if s, ok := item.(string); ok {
-				var andOr = map[string]int{"AND":1, "OR":1}
+				var andOr= map[string]int{"AND": 1, "OR": 1}
 				s = strings.ToUpper(s)
 				if _, ok := andOr[s]; ok {
 					logic = s
@@ -246,17 +262,17 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		return whereStr
 	}
 	var (
-		isNull         = map[string]int{"NOT NULL": 1, "NULL": 1}
-		compareAndLike = map[string]int{"=":1, "<>":1, ">":1, ">=":1, "<":1, "<=":1, "LIKE":1, "NOT LIKE":1}
-		isIn = map[string]int{"IN":1, "NOT IN":1}
-		isBetween = map[string]int{"NOT BETWEEN":1, "BETWEEN":1}
-		isExist = map[string]int{"NOT EXISTS":1, "EXISTS":1}
+		isNull= map[string]int{"NOT NULL": 1, "NULL": 1}
+		compareAndLike= map[string]int{"=": 1, "<>": 1, ">": 1, ">=": 1, "<": 1, "<=": 1, "LIKE": 1, "NOT LIKE": 1}
+		isIn= map[string]int{"IN": 1, "NOT IN": 1}
+		isBetween= map[string]int{"NOT BETWEEN": 1, "BETWEEN": 1}
+		isExist= map[string]int{"NOT EXISTS": 1, "EXISTS": 1}
 	)
 	exp = strings.ToUpper(exp)
 	if _, ok := compareAndLike[exp]; ok {
 		whereStr += field + " " + exp + " ?"
 		b.query.bind(b.parseStringValue(val, field))
-	} else if exp == "EXP" {
+	}else if exp == "EXP" {
 		s, ok := val.(string)
 		if ok {
 			whereStr += "( " + b.parseStringValue(s, field) + " )"
@@ -411,7 +427,7 @@ func (b *BaseBuilder) parseUnion(union []interface{}, unionType unionType) strin
 // parseClosure parse closure call, which return assemble sql
 // arg sub default value is false
 func (b *BaseBuilder) parseClosure(call QueryClosure, sub bool) string {
-	query := newMysqlQuery(b.query.Connection())
+	query := newMysqlQuery(b.query.connection())
 	call(query)
 	sql := query.BuildSql(sub)
 	b.query.bind(query.getBind())

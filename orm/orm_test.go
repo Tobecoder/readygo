@@ -121,9 +121,22 @@ func TestOrm(t *testing.T) {
 	orm.Table("userinfo").
 		Where("created", "between", []interface{}{"2017-12-29 00:00:00", "2018-01-15 14:18:35"}).
 		Where("aaa", "bbb").
+		Where("id", []interface{}{">", "1"}, []interface{}{"<", 3}, "or").
 		Where("username", "test").
 		Where("uid", "in", func (parser QueryParser) {
 			parser.Table("userinfo a").Where("uid", ">", 1).Field("uid")
+		}).Find()
+	subSql := orm.Table("userinfo u").
+		Where("username", "like", "%hehe%").
+		Field("uid").
+		BuildSql(true)
+	orm.Table(subSql + " a").
+		Where("uid", ">", 10).
+		Find()
+	orm.Table("userinfo").Where(func(parser QueryParser){
+			parser.Where("id", 1).WhereOr("username", "hehe")
+		}).WhereOr(func(parser QueryParser){
+			parser.Where("uid", []interface{}{">", "1"}, []interface{}{"<", 3}, "or")
 		}).Find()
 	t.Fatal("test done")
 }
