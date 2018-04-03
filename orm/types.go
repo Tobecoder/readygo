@@ -93,7 +93,7 @@ type QueryParser interface {
 	Field(field interface{}) QueryParser // assemble query fields
 	Where(args ...interface{}) QueryParser // assemble query condition
 	WhereOr(args ...interface{}) QueryParser                        // assemble or query condition
-	//WhereXor()                       // assemble xor query condition
+	WhereXor(args ...interface{}) QueryParser                       // assemble xor query condition
 	//WhereNull()                      // assemble null query condition
 	//WhereNotNull()                   // assemble not null query condition
 	//WhereExists()                    // assemble exist query condition
@@ -105,7 +105,7 @@ type QueryParser interface {
 	//WhereBetween()                   // assemble between query condition
 	//WhereNotBetween()                // assemble noe between query condition
 	//WhereExp()                       // assemble query express condition
-	//WhereTime()                      // assemble time query condition
+	WhereTime(field, operator string, value interface{}) QueryParser   // assemble time query condition
 	//Limit()                          // assemble limit clause
 	//Page()                           // assemble page query options
 	Comment(comment string) QueryParser // assemble sql comment

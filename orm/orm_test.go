@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 )
 
 var config = map[string]interface{}{
@@ -138,5 +139,24 @@ func TestOrm(t *testing.T) {
 		}).WhereOr(func(parser QueryParser){
 			parser.Where("uid", []interface{}{">", "1"}, []interface{}{"<", 3}, "or")
 		}).Find()
+	orm.Table("userinfo").
+		Where("created", " >= time ", timeNow()).Find()
+	orm.Table("userinfo").
+		Where("created", " between time ", "2006-01-02 15:04:05,2006-01-02 15:04:05").Find()
+	orm.Table("userinfo u").
+		Where("u.created", " between time ", []string{"2006-01-02 15:04:05", "2006-01-02 15:04:05"}).Find()
+	orm.Table("userinfo").
+		WhereTime("created", ">", "2006-01-02 15:04:05").
+		Find()
+	orm.Table("userinfo").
+		WhereTime("created", "between", "2006-01-02 15:04:05, 2006-01-02 15:04:05").
+		Find()
+	orm.Table("userinfo").
+		WhereTime("created", "not between", []string{"2006-01-02 15:04:05", "2006-01-02 15:04:05"}).
+		Find()
 	t.Fatal("test done")
+}
+
+func timeNow() string{
+	return time.Now().Format("2006-01-02 15:04:05")
 }

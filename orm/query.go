@@ -111,6 +111,7 @@ func (q *BaseQuery) Table(tableName interface{}) QueryParser {
 			table = append(table, prefixTable)
 		}
 	}
+	q.tableName = table[0]
 	q.option.table = append(q.option.table, table...)
 	return q
 }
@@ -340,6 +341,10 @@ func (q *BaseQuery) fieldAlias(field, alias string) QueryParser{
 // Where(func(parser QueryParser){
 //     parser.Where("id", 1).Where("username", "hehe")
 // })
+// Where("created", ">= time", "2017-12-01 01:01:01")-> created >= ?
+// Where("created", " between time ", "2006-01-02 15:04:05,2006-01-02 15:04:05")
+// Where("created", " between time ", []string{"2006-01-02 15:04:05", "2006-01-02 15:04:05"})
+
 func (q *BaseQuery) Where(args ...interface{}) QueryParser {
 	field, op, condition, params := q.parseWhereArgs(args...)
 	q.parseWhereExp("AND", field, op, condition, params)
@@ -372,6 +377,29 @@ func (q *BaseQuery) WhereOr(args ...interface{}) QueryParser{
 	field, op, condition, params := q.parseWhereArgs(args...)
 	q.parseWhereExp("OR", field, op, condition, params)
 	return q
+}
+
+// WhereXor assemble where sql clause
+func (q *BaseQuery) WhereXor(args ...interface{}) QueryParser{
+	field, op, condition, params := q.parseWhereArgs(args...)
+	q.parseWhereExp("XOR", field, op, condition, params)
+	return q
+}
+
+// WhereTime support convenient time query
+// usage:
+// WhereTime("created", ">", "2006-01-02 15:04:05")
+// WhereTime("created", ">=", "2006-01-02 15:04:05")
+// WhereTime("created", "<", "2006-01-02 15:04:05")
+// WhereTime("created", "<=", "2006-01-02 15:04:05")
+// WhereTime("created", "between", "2006-01-02 15:04:05, 2006-01-02 15:04:05")
+// WhereTime("created", "not between", []string{"2006-01-02 15:04:05", "2006-01-02 15:04:05"})
+func (q *BaseQuery) WhereTime(field, operator string, value interface{}) QueryParser{
+	var operatorMap = map[string]int{">=":1,">":1,"<":1,"<=":1,"between":1,"not between":1}
+	if _, ok := operatorMap[operator]; !ok{
+		return q
+	}
+	return q.Where(field, operator + " time", value)
 }
 
 // parseWhereExp assemble where options

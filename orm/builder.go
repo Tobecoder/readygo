@@ -21,6 +21,8 @@ import (
 	"container/list"
 )
 
+const placeHolder = "?"
+
 var (
 	selectSql    = `SELECT%DISTINCT% %FIELD% FROM %TABLE%%FORCE%%JOIN%%WHERE%%GROUP%%HAVING%%ORDER%%LIMIT% %UNION%%LOCK%%COMMENT%`
 	insertSql    = `%INSERT% INTO %TABLE% (%FIELD%) VALUES (%DATA%) %COMMENT%`
@@ -257,7 +259,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		val = value[1]
 	}
 	// check express operator
-	exp, ok := checkOperator(exp)
+	exp, ok := checkOperator(strings.TrimSpace(exp))
 	if !ok {
 		return whereStr
 	}
@@ -267,10 +269,12 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		isIn= map[string]int{"IN": 1, "NOT IN": 1}
 		isBetween= map[string]int{"NOT BETWEEN": 1, "BETWEEN": 1}
 		isExist= map[string]int{"NOT EXISTS": 1, "EXISTS": 1}
+		compareTime= map[string]int{"< TIME":1, "> TIME":1, "<= TIME":1, ">= TIME":1}
+		betweenTime= map[string]int{"BETWEEN TIME":1, "NOT BETWEEN TIME":1}
 	)
 	exp = strings.ToUpper(exp)
 	if _, ok := compareAndLike[exp]; ok {
-		whereStr += field + " " + exp + " ?"
+		whereStr += field + " " + exp + " " + placeHolder
 		b.query.bind(b.parseStringValue(val, field))
 	}else if exp == "EXP" {
 		s, ok := val.(string)
@@ -279,7 +283,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}
 		// bind args had been processed by query.Where
 	} else if _, ok := isNull[exp]; ok {
-		whereStr += field + " IS ?"
+		whereStr += field + " IS " + placeHolder
 		b.query.bind(exp)
 	} else if _, ok := isIn[exp]; ok {
 		if v, ok := val.(func (QueryParser)); ok {
@@ -287,7 +291,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}else{
 			var (
 				inSlice = make([]string, 0)
-				placeHolder = make([]string, 0)
+				nestPlaceHolder = make([]string, 0)
 			)
 			if instr, ok := val.(string);ok{
 				inSlice = strings.Split(instr, ",")
@@ -298,12 +302,12 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 			}
 			bindArgs := make([]interface{}, len(inSlice))
 			for k, args := range inSlice {
-				placeHolder = append(placeHolder, "?")
+				nestPlaceHolder = append(nestPlaceHolder, placeHolder)
 				bindArgs[k] = args
 			}
 			b.query.bind(bindArgs)
 
-			zone := strings.Join(placeHolder, ",")
+			zone := strings.Join(nestPlaceHolder, ",")
 			whereStr += field + " " + exp + " (" + zone + ")"
 		}
 	}else if _, ok := isBetween[exp]; ok {
@@ -326,7 +330,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		b.query.bind(betweenSlice[0])
 		b.query.bind(betweenSlice[1])
 
-		between := strings.Join([]string{"?", "?"}, " AND ")
+		between := strings.Join([]string{placeHolder, placeHolder}, " AND ")
 		whereStr += field + " " + exp + " " + between
 	}else if _, ok := isExist[exp]; ok {
 		if v, ok := val.(func (QueryParser)); ok {
@@ -334,6 +338,26 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}else if v, ok := val.(string); ok{
 			whereStr += exp + " (" + b.parseStringValue(v, field) + ") "
 		}
+	}else if _, ok := compareTime[exp]; ok {
+		if v, ok := val.(string); ok{
+			whereStr += field + " " + exp[:2] + " " + placeHolder
+			b.query.bind(b.parseStringValue(v, field))
+		}
+	}else if _, ok := betweenTime[exp]; ok {
+		slice := make([]string, 0)
+		if v, ok := val.(string); ok{
+			slice = strings.SplitN(v, ",", 2)
+		}else if v, ok := val.([]string); ok {
+			for _, timeStr := range v {
+				slice = append(slice, b.parseStringValue(timeStr, field))
+			}
+		}
+		if len(slice) <= 1{
+			return whereStr
+		}
+		b.query.bind(b.parseStringValue(slice[0], field))
+		b.query.bind(b.parseStringValue(slice[1], field))
+		whereStr += field + " " + exp[:len(exp)-4] + " ?" + " AND ?"
 	}
 	return whereStr
 }
