@@ -69,7 +69,7 @@ func TestOrm(t *testing.T) {
 	//orm.Connect("mysql_dev2")
 	orm.Table("userinfo u").
 		Where("uid > ? and username = ?", []interface{}{1, "test"}).
-		Field("uid").
+		Field("u.uid").
 		Find()
 	orm.Table("userinfo u").
 		Where("uid").
@@ -153,7 +153,10 @@ func TestOrm(t *testing.T) {
 		Find()
 	orm.Table("userinfo").
 		WhereTime("created", "not between", []string{"2006-01-02 15:04:05", "2006-01-02 15:04:05"}).
+		Order("uid").
 		Find()
+	orm.Table("userinfo u").Join("userdetail d", "u.uid = d.uid").Find()
+	orm.Table("userinfo u").Join("(select * from test_userdetail) d", "u.uid = d.uid").Find()
 	t.Fatal("test done")
 }
 

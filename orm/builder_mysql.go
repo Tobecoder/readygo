@@ -14,6 +14,11 @@
 
 package orm
 
+import (
+	"strings"
+	"regexp"
+)
+
 type MysqlBuilder struct {
 	BaseBuilder
 }
@@ -33,7 +38,7 @@ func newMysqlBuilder(query QueryParser) Builder{
 // characters, and turning others into specific escape sequences, such as
 // turning newlines into \n and null bytes into \0.
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L823-L932
-func escapeBytesBackslash(buf, v []byte) []byte {
+func (b *MysqlBuilder)escapeBytesBackslash(buf, v []byte) []byte {
 	pos := len(buf)
 	buf = reserveBuffer(buf, len(v)*2)
 
@@ -77,7 +82,7 @@ func escapeBytesBackslash(buf, v []byte) []byte {
 }
 
 // escapeStringBackslash is similar to escapeBytesBackslash but for string.
-func escapeStringBackslash(buf []byte, v string) []byte {
+func (b *MysqlBuilder)escapeStringBackslash(buf []byte, v string) []byte {
 	pos := len(buf)
 	buf = reserveBuffer(buf, len(v)*2)
 
@@ -126,7 +131,7 @@ func escapeStringBackslash(buf []byte, v string) []byte {
 // it contains. This is used when the NO_BACKSLASH_ESCAPES SQL_MODE is in
 // effect on the server.
 // https://github.com/mysql/mysql-server/blob/mysql-5.7.5/mysys/charset.c#L963-L1038
-func escapeBytesQuotes(buf, v []byte) []byte {
+func (b *MysqlBuilder)escapeBytesQuotes(buf, v []byte) []byte {
 	pos := len(buf)
 	buf = reserveBuffer(buf, len(v)*2)
 
@@ -161,4 +166,26 @@ func (b *MysqlBuilder)escapeStringQuotes(buf []byte, v string) []byte {
 		}
 	}
 	return buf[:pos]
+}
+
+func (b *MysqlBuilder) parseKey(key string, option *Option) string {
+	var table string
+	key = strings.TrimSpace(key)
+	regex, _ := regexp.Compile(`[,'"()\s]`)
+	if strings.Contains(key, ".") && !regex.MatchString(key) && !strings.Contains(key, "`"){
+		s := strings.SplitN(key, ".", 2)
+		table = s[0]
+		if t, ok := option.tableAlias[table]; ok{
+			table = t
+		}
+		key = s[1]
+	}
+	regex, _ = regexp.Compile(`[,'"*().\s]`)
+	if !strings.Contains(key, "`") && !regex.MatchString(key){
+		key = "`" + key + "`"
+	}
+	if len(table) > 0 {
+		key = "`" + table + "`." + key
+	}
+	return key
 }

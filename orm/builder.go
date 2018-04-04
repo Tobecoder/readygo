@@ -87,7 +87,7 @@ func (b *BaseBuilder) selects(option Option) string {
 		"%HAVING%",
 		b.parseHaving(option.having),
 		"%ORDER%",
-		b.parseOrder(option.order),
+		b.parseOrder(option.order, &option),
 		"%LIMIT%",
 		b.parseLimit(option.limit),
 		"%UNION%",
@@ -105,12 +105,17 @@ func (b *BaseBuilder) selects(option Option) string {
 
 // parseTable parse sql query tables
 func (b *BaseBuilder) parseTable(table []string, option *Option) string {
+	conn := b.query.connection()
 	tables := make([]string, 0)
 	for _, t := range table {
+		var prefixTable = t
+		if !strings.Contains(t, ")"){
+			prefixTable = conn.Prefix + t
+		}
 		if alias, ok := option.tableAlias[t]; ok {
-			tables = append(tables, t+" "+alias)
+			tables = append(tables, b.parseKey(prefixTable, option) +" "+b.parseKey(alias, option))
 		} else {
-			tables = append(tables, t)
+			tables = append(tables, b.parseKey(prefixTable, option))
 		}
 	}
 	return strings.Join(tables, ",")
@@ -133,9 +138,9 @@ func (b *BaseBuilder) parseField(option *Option) string {
 	} else {
 		for _, f := range option.field {
 			if alias, ok := option.fieldAlias[f]; ok {
-				field = append(field, f+" AS "+alias)
+				field = append(field, b.parseKey(f, option)+" AS "+b.parseKey(alias, option))
 			} else {
-				field = append(field, f)
+				field = append(field, b.parseKey(f, option))
 			}
 		}
 	}
@@ -152,6 +157,10 @@ func (b *BaseBuilder) parseJoin(option *Option) string {
 		table := b.parseTable([]string{v["table"]}, option)
 		joinStr += " " + v["type"] + " JOIN " + table
 		if c, ok := v["condition"]; ok && len(c) > 0 {
+			if strings.Contains(c, "="){
+				condition := strings.SplitN(c, "=", 2)
+				c = b.parseKey(condition[0], option) + "=" + b.parseKey(condition[1], option)
+			}
 			joinStr += " ON " + c
 		}
 	}
@@ -225,10 +234,14 @@ func (b *BaseBuilder) buildWhere(where where, option *Option) string {
 // parseWhereItem parse where item
 func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic string, option *Option) string {
 	var (
+		key	string
 		whereStr string
 		exp      string
 		val      interface{}
 	)
+	if len(field) > 0 {
+		key = b.parseKey(field, option)
+	}
 	if len(value) == 1 {
 		exp = "="
 		val = value[0]
@@ -274,7 +287,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 	)
 	exp = strings.ToUpper(exp)
 	if _, ok := compareAndLike[exp]; ok {
-		whereStr += field + " " + exp + " " + placeHolder
+		whereStr += key + " " + exp + " " + placeHolder
 		b.query.bind(b.parseStringValue(val, field))
 	}else if exp == "EXP" {
 		s, ok := val.(string)
@@ -283,11 +296,11 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}
 		// bind args had been processed by query.Where
 	} else if _, ok := isNull[exp]; ok {
-		whereStr += field + " IS " + placeHolder
+		whereStr += key + " IS " + placeHolder
 		b.query.bind(exp)
 	} else if _, ok := isIn[exp]; ok {
 		if v, ok := val.(func (QueryParser)); ok {
-			whereStr += field + " " + exp + " " + b.parseClosure(v, true)
+			whereStr += key + " " + exp + " " + b.parseClosure(v, true)
 		}else{
 			var (
 				inSlice = make([]string, 0)
@@ -308,7 +321,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 			b.query.bind(bindArgs)
 
 			zone := strings.Join(nestPlaceHolder, ",")
-			whereStr += field + " " + exp + " (" + zone + ")"
+			whereStr += key + " " + exp + " (" + zone + ")"
 		}
 	}else if _, ok := isBetween[exp]; ok {
 		var (
@@ -331,7 +344,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		b.query.bind(betweenSlice[1])
 
 		between := strings.Join([]string{placeHolder, placeHolder}, " AND ")
-		whereStr += field + " " + exp + " " + between
+		whereStr += key + " " + exp + " " + between
 	}else if _, ok := isExist[exp]; ok {
 		if v, ok := val.(func (QueryParser)); ok {
 			whereStr += exp + " " + b.parseClosure(v, true)
@@ -340,7 +353,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}
 	}else if _, ok := compareTime[exp]; ok {
 		if v, ok := val.(string); ok{
-			whereStr += field + " " + exp[:2] + " " + placeHolder
+			whereStr += key + " " + exp[:2] + " " + placeHolder
 			b.query.bind(b.parseStringValue(v, field))
 		}
 	}else if _, ok := betweenTime[exp]; ok {
@@ -357,7 +370,7 @@ func (b *BaseBuilder) parseWhereItem(field string, value []interface{}, logic st
 		}
 		b.query.bind(b.parseStringValue(slice[0], field))
 		b.query.bind(b.parseStringValue(slice[1], field))
-		whereStr += field + " " + exp[:len(exp)-4] + " ?" + " AND ?"
+		whereStr += key + " " + exp[:len(exp)-4] + " ?" + " AND ?"
 	}
 	return whereStr
 }
@@ -401,7 +414,7 @@ func (b *BaseBuilder) parseHaving(having string) string {
 }
 
 // parseOrder assemble order sql clause
-func (b *BaseBuilder) parseOrder(order []string) string {
+func (b *BaseBuilder) parseOrder(order []string, option *Option) string {
 	var (
 		orderStr string
 		orders   []string
@@ -409,7 +422,12 @@ func (b *BaseBuilder) parseOrder(order []string) string {
 	if order != nil {
 		for _, v := range order {
 			if !strings.Contains(v, "(") {
-				orders = append(orders, v)
+				var sort string
+				o := strings.SplitN(v, " ", 2)
+				if len(o) == 2{
+					sort = o[1]
+				}
+				orders = append(orders, b.parseKey(o[0], option) + " " + sort)
 			}
 		}
 		orderStr += " ORDER BY " + strings.Join(orders, ",")
@@ -507,4 +525,8 @@ func checkOperator(exp string) (express string, exist bool){
 // escapeStringQuotes is similar to escapeBytesQuotes but for string.
 func (b *BaseBuilder)escapeStringQuotes(buf []byte, v string) []byte {
 	return b.ins.escapeStringQuotes(buf, v)
+}
+
+func (b *BaseBuilder) parseKey(key string, option *Option) string{
+	return b.ins.parseKey(key, option)
 }

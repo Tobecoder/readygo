@@ -59,7 +59,7 @@ func (q *BaseQuery) Builder() Builder {
 
 // GetTable get current table name, which contains table prefix
 func (q *BaseQuery) GetTable() string {
-	return q.tableName
+	return q.driver.Prefix + q.tableName
 }
 
 // Table set default table name, tableName should not contains table prefix
@@ -72,7 +72,6 @@ func (q *BaseQuery) GetTable() string {
 // Table([]string{"example_user user","example_role role"})
 func (q *BaseQuery) Table(tableName interface{}) QueryParser {
 	table := make([]string, 0)
-	prefix := q.driver.Prefix
 	switch v := tableName.(type) {
 	case string:
 		if strings.Contains(v, ")"){
@@ -82,33 +81,30 @@ func (q *BaseQuery) Table(tableName interface{}) QueryParser {
 			tables := strings.Split(v, ",")
 			for _, t := range tables {
 				alias := strings.SplitN(t, " ", 2)
-				prefixTable := prefix + alias[0]
 				if len(alias) == 2 {
-					q.tableAlias(prefixTable, alias[1])
+					q.tableAlias(alias[0], alias[1])
 				}
-				table = append(table, prefixTable)
+				table = append(table, alias[0])
 			}
 		}else if strings.Contains(v, " "){
 			alias := strings.SplitN(v, " ", 2)
-			prefixTable := prefix + alias[0]
-			q.tableAlias(prefixTable, alias[1])
-			table = append(table, prefixTable)
+			q.tableAlias(alias[0], alias[1])
+			table = append(table, alias[0])
 		}else{
-			table = append(table, prefix + v)
+			table = append(table, v)
 		}
 	case map[string]string:
 		for t, alias := range v{
 			q.tableAlias(t, alias)
-			table = append(table, prefix + t)
+			table = append(table, t)
 		}
 	case []string:
 		for _, t := range v {
 			alias := strings.SplitN(t, " ", 2)
-			prefixTable := prefix + alias[0]
 			if len(alias) == 2 {
-				q.tableAlias(prefixTable, alias[1])
+				q.tableAlias(alias[0], alias[1])
 			}
-			table = append(table, prefixTable)
+			table = append(table, alias[0])
 		}
 	}
 	q.tableName = table[0]
@@ -235,10 +231,10 @@ func (q *BaseQuery) Join(join ...string) QueryParser {
 		}
 	}
 	if len(aliasName) > 0 {
-		q.tableAlias(q.driver.Prefix + table, aliasName)
+		q.tableAlias(table, aliasName)
 	}
 	entry := map[string]string{
-		"table":q.driver.Prefix + table,
+		"table":table,
 		"type":strings.ToUpper(joinType),
 		"condition": joinCondition,
 	}
