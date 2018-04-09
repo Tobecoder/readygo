@@ -14,7 +14,9 @@
 
 package orm
 
-import "container/list"
+import (
+	"container/list"
+)
 
 type unionType string
 
@@ -76,7 +78,7 @@ type QueryParser interface {
 	//StartTrans()                     // start transaction
 	//Commit()                         // commit transaction
 	//Rollback()                       // rollback transaction
-	Value(fieldName string) (interface{}, error) // retrieves field value
+	//Value(fieldName string) (interface{}, error) // retrieves field value
 	//PartitionTableName()             // retrieves table partition name
 	//Partition()                      // set table partition name's rule
 	//Column()                         // retrieves column data set
@@ -125,11 +127,12 @@ type QueryParser interface {
 	//Update()                         // update data set
 	//UpdateBatch()                    // batch update data set
 	//Select()                         // select multiple data set
-	Find() (interface{}, error) // get one data set
+	Find(data interface{}) (error) // get one data set
 	BuildSql(sub ...bool) string                       // retrieves query sql, don't execute sql actually
 	//Delete()                         // delete query
 
 	bind(args interface{}) // bind sql args
 	getBind() []interface{} // get bind sql args
 	getOption() Option
+	queryRows(sql string, args ...interface{}) (*queryRows, error)
 }

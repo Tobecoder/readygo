@@ -20,6 +20,11 @@ import (
 	"log"
 	"os"
 	"time"
+	"errors"
+)
+
+const (
+	tagName = "orm"
 )
 
 var (
@@ -27,6 +32,13 @@ var (
 	DebugLog        = NewLog(os.Stdout)
 	DefaultTimeZone = time.Local
 	TypedMySQL      = "mysql"
+)
+
+var (
+	ErrArgs = errors.New("query args must be a ptr")
+	ErrFetchStyle = errors.New("invalid fetch style")
+	ErrScan = errors.New("query result scan failed")
+	ErrEmpty = errors.New("result is empty")
 )
 
 // Log describe database execute log operator

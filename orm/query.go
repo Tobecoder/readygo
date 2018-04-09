@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"regexp"
 	"container/list"
+	"reflect"
 )
 
 type BaseQuery struct {
@@ -123,45 +124,14 @@ func (q *BaseQuery) tableAlias(table, alias string) QueryParser{
 
 // Query retrieves data set by sql and bind args
 func (q *BaseQuery) Query(query string, args ...interface{}) ([]map[string]interface{}, error) {
-	q.lastSql = fmt.Sprintf(query, args...)
-
+	queryRows, err := q.queryRows(query, args...)
+	if err != nil{
+		return nil, err
+	}
+	defer queryRows.Close()
 	items := make([]map[string]interface{}, 0)
-	rows, err := q.driver.Db.Query(query, args...)
-	if err != nil {
-		DebugLog.log(err)
-		return items, err
-	}
-	defer rows.Close()
-	columns, err := rows.Columns()
-	if err != nil {
-		DebugLog.log(err)
-		return items, err
-	}
-	count := len(columns)
-	values := make([]interface{}, count)
-	scanArgs := make([]interface{}, count)
-	for i := 0; i < count; i++ {
-		scanArgs[i] = &values[i]
-	}
-	for rows.Next(){
-		rows.Scan(scanArgs...)
-		entry := make(map[string]interface{})
-		for key, col := range columns {
-			var v interface{}
-			val := values[key]
-			if b, ok := val.([]byte); ok {
-				v = string(b)
-			} else {
-				v = val
-			}
-			entry[col] = v
-		}
-		items = append(items, entry)
-	}
-	if err := rows.Err(); err != nil {
-		DebugLog.log(err)
-		return make([]map[string]interface{}, 0), err
-	}
+	value := reflect.ValueOf(&items)
+	queryRows.scanSliceMap(&value)
 	return items, nil
 }
 
@@ -169,7 +139,13 @@ func (q *BaseQuery) Query(query string, args ...interface{}) ([]map[string]inter
 func (q *BaseQuery) Exec(query string, args ...interface{}) (RowsAffected int64, err error) {
 	q.lastSql = fmt.Sprintf(query, args...)
 
-	result, err := q.driver.Db.Exec(query, args...)
+	statement, err := q.driver.Db.Prepare(query)
+	if err != nil {
+		return 0, err
+	}
+	defer statement.Close()
+
+	result, err := statement.Exec(args...)
 	if err != nil {
 		DebugLog.log(err)
 		return
@@ -181,18 +157,6 @@ func (q *BaseQuery) Exec(query string, args ...interface{}) (RowsAffected int64,
 // LastSql retrieves last execute sql
 func (q *BaseQuery) LastSql() string {
 	return q.lastSql
-}
-
-// Value retrieves field value
-func (q *BaseQuery) Value (fieldName string) (interface{}, error){
-	q.option.field = []string{fieldName}
-	result, err := q.Find()
-	if err != nil {
-		return nil, err
-	}
-	// clean the option
-	q.option = Option{}
-	return result, err
 }
 
 // Join assemble table join to sql query, table name prefix is filled auto
@@ -536,14 +500,29 @@ func (q *BaseQuery) Distinct () QueryParser{
 }
 
 // Find retrieves one data set
-func (q *BaseQuery) Find() (interface{}, error){
+func (q *BaseQuery) Find(data interface{}) error {
 	q.option.limit = "1"
 	options := q.parseOptions()
 	sql := q.builder.selects(options)
 	bindArgs := q.getBind()
-	fmt.Println(bindArgs)
-	fmt.Println(sql)
-	return nil, nil
+	rows, err := q.queryRows(sql, bindArgs...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	value := reflect.ValueOf(data)
+	if value.Kind() != reflect.Ptr {
+		return ErrArgs
+	}
+	kind := value.Elem().Kind()
+	if kind == reflect.Struct{
+		rows.scanStruct(&value)
+	}else if kind == reflect.Map{
+		rows.scanMap(&value)
+	}else{
+		return ErrFetchStyle
+	}
+	return nil
 }
 
 // getBind returns previous bind args
@@ -604,6 +583,27 @@ func (q *BaseQuery) parseOptions() Option{
 	return options
 }
 
+// getOption return query option
 func (q *BaseQuery) getOption() Option {
 	return q.option
+}
+
+// queryRows build *queryRows object
+// notice: it's necessary to call Close method
+func (q *BaseQuery) queryRows(sql string, args ...interface{}) (*queryRows, error) {
+	q.lastSql = fmt.Sprintf(sql, args...)
+
+	statement, err := q.driver.Db.Prepare(sql)
+	if err != nil {
+		return nil, err
+	}
+	defer statement.Close()
+
+	rows, err := statement.Query(args...)
+	if err != nil {
+		DebugLog.log(err)
+		return nil, err
+	}
+	queryRows := &queryRows{rows}
+	return queryRows, nil
 }
