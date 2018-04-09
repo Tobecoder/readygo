@@ -121,7 +121,7 @@ func (qr *queryRows) scanStruct(item *reflect.Value) error{
 	}
 
 	tagMap := make(map[string]string)
-	tagValue := make(map[string]*reflect.Value)
+	tagValue := make(map[string]reflect.Value)
 	e := item.Elem()
 	eType := e.Type()
 	fieldNumber := e.NumField()
@@ -133,8 +133,7 @@ func (qr *queryRows) scanStruct(item *reflect.Value) error{
 		}else{
 			tagMap[f.Name] = strings.ToLower(f.Name)
 		}
-		field := e.Field(i)
-		tagValue[f.Name] = &field
+		tagValue[f.Name] = e.Field(i)
 	}
 
 	if qr.Next(){
