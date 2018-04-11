@@ -23,6 +23,12 @@ import (
 	"reflect"
 )
 
+const (
+	formatTime     = "15:04:05"
+	formatDate     = "2006-01-02"
+	formatDateTime = "2006-01-02 15:04:05"
+)
+
 type BaseQuery struct {
 	driver *driverAlias
 	tableName string
@@ -604,6 +610,6 @@ func (q *BaseQuery) queryRows(sql string, args ...interface{}) (*queryRows, erro
 		DebugLog.log(err)
 		return nil, err
 	}
-	queryRows := &queryRows{rows}
+	queryRows := &queryRows{rows, q}
 	return queryRows, nil
 }
