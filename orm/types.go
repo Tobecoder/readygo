@@ -24,6 +24,8 @@ type unionType string
 // 1st,logic operator.such as and,or and so on
 // 2nd,field name,such as uid, username and so on
 // 3rd,condition presents where condition
+// todo:should to be optimized
+// whereType should be transferred to struct
 type whereType map[string]map[string][]interface{}
 
 type whereList map[string]*list.List

@@ -43,12 +43,12 @@ var config = map[string]interface{}{
 }
 
 type User struct {
-	Uid int64 `orm:"uid"`
+	Uid int
 	Username string
-	Depart string `orm:"departname"`
-	Created string `orm:"created"`
-	Intro string `orm:"intro"`
-	Profile string `orm:"profile"`
+	Departname string
+	Created time.Time
+	Intro string
+	Profile string
 }
 
 func TestMain(m *testing.M) {
@@ -82,6 +82,7 @@ func TestOrm(t *testing.T) {
 		Field("*").
 		Find(&user)
 	fmt.Printf("%#v\n", user)
+	fmt.Println(user.Created)
 	userMap := map[string]interface{}{}
 	orm.Table("userinfo u").
 		Where("uid", "2").

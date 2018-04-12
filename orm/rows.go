@@ -122,7 +122,9 @@ func (qr *queryRows) scanStruct(item *reflect.Value) error{
 	for i := 0; i < count; i++ {
 		scanArgs[i] = &values[i]
 	}
-
+	// todo:should to be optimized
+	// before listen http server, it's necessary to register struct to lifting performance
+	// so it's only need to retrieve fields of struct here,Instead of reflect struct fields every times
 	tagMap := make(map[string]string)
 	tagValue := make(map[string]*structField)
 	e := item.Elem()
